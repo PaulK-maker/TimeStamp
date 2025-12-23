@@ -1,44 +1,48 @@
+// backend/server.js
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const connectDB = require("./config/db");  // import only
+
+const connectDB = require("./config/db");
 const caregiverRoutes = require("./routes/caregiverRoutes");
 const timeClockRoutes = require("./routes/timeClockRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
-// CONNECT TO MONGO
+// 1. Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors({ origin: "http://localhost:3000" })); // allow your frontend
-// app.use(cors());
+// 2. Global middleware
+app.use(
+  cors({
+    origin: "http://localhost:3000", // React dev server
+    credentials: true,
+  })
+);
 app.use(express.json());
 
+// 3. Health / test routes
 app.get("/", (req, res) => {
   res.send("Caregiver Time Clock API running");
 });
 
-app.use("/api/admin", adminRoutes);
-
-app.use("/api/caregivers", caregiverRoutes);
-app.use("/api/timeclock", timeClockRoutes);
-const authRoutes = require("./routes/authRoutes");
-app.use("/api/auth", authRoutes);
-
-const PORT = process.env.PORT || 5000;
-
-// Quick test endpoint
 app.get("/api/test", (req, res) => {
   res.json({ test: "ok" });
 });
 
+// 4. API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/caregivers", caregiverRoutes);
+app.use("/api/timeclock", timeClockRoutes);
 
+// 5. Start server
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
 
 // // server.js or app.js
 // const express = require("express");

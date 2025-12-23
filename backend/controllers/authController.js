@@ -63,12 +63,11 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { id: caregiver._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
+  const token = jwt.sign(
+  { id: caregiver._id, role: caregiver.role }, // include role
+  process.env.JWT_SECRET,
+  { expiresIn: "1d" }
+);
     res.json({
       message: "Login successful",
       token,
