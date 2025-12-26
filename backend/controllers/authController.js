@@ -1,3 +1,4 @@
+// backend/controllers/authController.js
 const Caregiver = require("../models/caregiver");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -27,13 +28,14 @@ exports.register = async (req, res) => {
       lastName,
       email,
       password: hashedPassword,
+      // role will default from schema
     });
 
     res.status(201).json({
       message: "Caregiver registered",
       caregiver: {
         id: caregiver._id,
-         role: caregiver.role, 
+        role: caregiver.role,
         email: caregiver.email,
       },
     });
@@ -49,25 +51,33 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // 1) Basic validation
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password required" });
     }
 
+    // 2) Find caregiver and include password
     const caregiver = await Caregiver.findOne({ email }).select("+password");
     if (!caregiver) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // 3) Compare password with bcrypt
     const isMatch = await bcrypt.compare(password, caregiver.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-  const token = jwt.sign(
-  { id: caregiver._id, role: caregiver.role }, // include role
-  process.env.JWT_SECRET,
-  { expiresIn: "1d" }
-);
+    // 4) Sign JWT including role
+    const token = jwt.sign(
+      { id: caregiver._id, role: caregiver.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    // 5) Send response
     res.json({
       message: "Login successful",
       token,
@@ -76,6 +86,7 @@ exports.login = async (req, res) => {
         firstName: caregiver.firstName,
         lastName: caregiver.lastName,
         email: caregiver.email,
+        role: caregiver.role,
       },
     });
   } catch (error) {
@@ -85,8 +96,6 @@ exports.login = async (req, res) => {
 
 /**
  * GET ALL TIME LOGS (ADMIN)
- * Optional query: caregiverId, startDate, endDate
- * Returns logs with total hours per entry and total hours per caregiver
  */
 exports.getAllTimeLogs = async (req, res) => {
   try {
@@ -102,8 +111,7 @@ exports.getAllTimeLogs = async (req, res) => {
       .populate("caregiver", "firstName lastName email")
       .sort({ createdAt: -1 });
 
-    // Calculate total hours per entry
-    const logsWithHours = logs.map(log => ({
+    const logsWithHours = logs.map((log) => ({
       id: log._id,
       caregiver: log.caregiver,
       punchIn: log.punchIn,
@@ -115,9 +123,8 @@ exports.getAllTimeLogs = async (req, res) => {
       createdAt: log.createdAt,
     }));
 
-    // Aggregate total hours per caregiver
     const totalHoursPerCaregiver = {};
-    logsWithHours.forEach(log => {
+    logsWithHours.forEach((log) => {
       const id = log.caregiver._id.toString();
       if (!totalHoursPerCaregiver[id]) {
         totalHoursPerCaregiver[id] = {
@@ -128,10 +135,12 @@ exports.getAllTimeLogs = async (req, res) => {
       totalHoursPerCaregiver[id].totalHours += parseFloat(log.totalHours);
     });
 
-    const totalHoursArray = Object.values(totalHoursPerCaregiver).map(item => ({
-      caregiver: item.caregiver,
-      totalHours: parseFloat(item.totalHours.toFixed(2)),
-    }));
+    const totalHoursArray = Object.values(totalHoursPerCaregiver).map(
+      (item) => ({
+        caregiver: item.caregiver,
+        totalHours: parseFloat(item.totalHours.toFixed(2)),
+      })
+    );
 
     res.json({
       count: logsWithHours.length,

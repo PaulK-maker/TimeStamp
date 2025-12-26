@@ -2,10 +2,13 @@ const TimeEntry = require("../models/TimeEntry");
 
 // @desc   Punch IN
 // @route  POST /api/timeclock/punch-in
+// @access Private (caregiver)
 const punchIn = async (req, res) => {
-  const { caregiverId, notes } = req.body;
-
   try {
+    // caregiver id comes from auth middleware (decoded JWT)
+    const caregiverId = req.user.id; // or req.user._id if that's how you set it
+    const { notes } = req.body;
+
     // Check for active shift
     const activeShift = await TimeEntry.findOne({
       caregiver: caregiverId,
@@ -26,16 +29,18 @@ const punchIn = async (req, res) => {
 
     res.status(201).json(entry);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
 // @desc   Punch OUT
 // @route  POST /api/timeclock/punch-out
+// @access Private (caregiver)
 const punchOut = async (req, res) => {
-  const { caregiverId } = req.body;
-
   try {
+    const caregiverId = req.user.id;
+
     const activeShift = await TimeEntry.findOne({
       caregiver: caregiverId,
       punchOut: null,
@@ -52,11 +57,31 @@ const punchOut = async (req, res) => {
 
     res.json(activeShift);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc   Get caregiver time entries
+// @desc   Get caregiver time entries (for logged-in caregiver)
+// @route  GET /api/timeclock/my-logs
+// @access Private (caregiver)
+const getMyTimeEntries = async (req, res) => {
+  try {
+    const caregiverId = req.user.id;
+
+    const entries = await TimeEntry.find({
+      caregiver: caregiverId,
+    }).sort({ punchIn: -1 });
+
+    res.json({ logs: entries });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Existing admin-style endpoints can stay if you still need them
+// @desc   Get time entries by caregiverId (admin)
 // @route  GET /api/timeclock/:caregiverId
 const getTimeEntries = async (req, res) => {
   try {
@@ -70,7 +95,7 @@ const getTimeEntries = async (req, res) => {
   }
 };
 
-// @desc   Get total hours worked for caregiver
+// @desc   Get total hours worked for caregiver (admin)
 // @route  GET /api/timeclock/:caregiverId/total-hours
 const getTotalHours = async (req, res) => {
   try {
@@ -100,6 +125,7 @@ const getTotalHours = async (req, res) => {
 module.exports = {
   punchIn,
   punchOut,
+  getMyTimeEntries,
   getTimeEntries,
   getTotalHours,
 };

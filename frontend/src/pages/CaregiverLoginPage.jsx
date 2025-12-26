@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 
-const LoginPage = () => {
+const CaregiverLoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,28 +14,25 @@ const LoginPage = () => {
 
     try {
       const res = await api.post("/auth/login", { email, password });
-      console.log("LOGIN RESPONSE:", res.data);
+      console.log("CAREGIVER LOGIN RESPONSE:", res.data);
 
-      // Backend returns { message, token, caregiver }
       const { token, caregiver } = res.data;
 
       if (!token) throw new Error("No token returned from server");
 
-      // Save token
+      // Save token (caregiver token is fine)
       localStorage.setItem("token", token);
 
-      // Only allow admin
-      if (caregiver?.role !== "admin") {
-        localStorage.removeItem("token");
-        setError("Access denied: Admins only");
-        return;
-      }
-        navigate("/admin");
-      // Go to admin dashboard
-      navigate("/admin");
+      // Optionally store caregiver info too
+      localStorage.setItem("caregiver", JSON.stringify(caregiver));
+
+      // Navigate to caregiver dashboard / punch page
+      navigate("/caregiver");
     } catch (err) {
-      console.error("LOGIN ERROR:", err);
-      setError(err.response?.data?.message || err.message || "Login failed");
+      console.error("CAREGIVER LOGIN ERROR:", err);
+      setError(
+        err.response?.data?.message || err.message || "Login failed"
+      );
     }
   };
 
@@ -48,7 +45,7 @@ const LoginPage = () => {
         alignItems: "center",
       }}
     >
-      <h1>LOGIN PAGE</h1>
+      <h1>CAREGIVER LOGIN</h1>
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       <form
@@ -93,4 +90,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default CaregiverLoginPage;
