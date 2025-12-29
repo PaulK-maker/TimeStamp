@@ -70,6 +70,38 @@ app.options("/api/debug-cors", (req, res) => {
 // 4. Authentication route (sample implementation)
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
+
+
+  // ✅ TEMPORARY MOCK - Add this to server.js for testing
+app.get("/api/admin/timelogs", (req, res) => {
+  // Skip auth check for now (remove later)
+  res.json({
+    logs: [
+      {
+        _id: "1",
+        caregiver: {
+          _id: "cg1",
+          firstName: "Sarah",
+          lastName: "Jones",
+          email: "sarah.jones@test.com"
+        },
+        punchIn: "2025-12-28T10:00:00Z",
+        punchOut: "2025-12-28T18:00:00Z"
+      },
+      {
+        _id: "2",
+        caregiver: {
+          _id: "cg2",
+          firstName: "John",
+          lastName: "Doe",
+          email: "john.doe@test.com"
+        },
+        punchIn: "2025-12-28T09:00:00Z",
+        punchOut: null
+      }
+    ]
+  });
+});
   
   // Mock credentials (for local testing only)
   const users = [
