@@ -13,7 +13,7 @@ const app = express();
 // 1. Connect to MongoDB
 connectDB();
 
-// ✅ FIXED CORS - Single cors() middleware with dynamic origin validation
+// 2. ✅ FIXED CORS - Single cors() middleware with dynamic origin validation
 const allowedOrigins = [
   "http://localhost:3000",
   "https://timecapcha-frontend.onrender.com"
@@ -35,14 +35,11 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// ❌ REMOVE THIS - it was conflicting with cors() middleware above
-// app.use((req, res, next) => { ... });
-
-// 2. Body parsers for JSON and URL-encoded requests
+// 3. Body parsers for JSON and URL-encoded requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3. Health and test endpoints
+// 4. Health and test endpoints
 app.get("/", (req, res) => {
   res.json({
     message: "Caregiver Time Clock API ✅",
@@ -59,7 +56,7 @@ app.post("/api/test", (req, res) => {
   res.json({ message: "POST test OK", body: req.body });
 });
 
-// 🔍 DEBUG ENDPOINT - Check what origin your frontend is sending
+// 🔍 DEBUG ENDPOINT
 app.options("/api/debug-cors", (req, res) => {
   res.json({ 
     origin: req.headers.origin,
@@ -67,14 +64,8 @@ app.options("/api/debug-cors", (req, res) => {
   });
 });
 
-// 4. Authentication route (sample implementation)
-app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
-
-
-  // ✅ TEMPORARY MOCK - Add this to server.js for testing
+// ✅ FIXED - Mock admin timelogs (TOP LEVEL - accessible to frontend)
 app.get("/api/admin/timelogs", (req, res) => {
-  // Skip auth check for now (remove later)
   res.json({
     logs: [
       {
@@ -102,6 +93,10 @@ app.get("/api/admin/timelogs", (req, res) => {
     ]
   });
 });
+
+// 5. Authentication route (CLEAN - no nested routes)
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body;
   
   // Mock credentials (for local testing only)
   const users = [
@@ -122,24 +117,20 @@ app.get("/api/admin/timelogs", (req, res) => {
   res.status(401).json({ message: "Invalid credentials" });
 });
 
-// 5. Additional API routes
+// 6. Additional API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 
-// // 6. Handle unmatched routes (404)
-// app.use("*", (req, res) => {
-//   res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}` });
-// });
-
-// ✅ FIXED - Move this to the VERY END of your file (after all app.use("/api/...") routes)
+// 7. 404 handler (LAST - catches everything else)
 app.use((req, res) => {
   res.status(404).json({ 
-    message: `Cannot ${req.method} ${req.originalUrl}` 
+    message: `Route not found: ${req.method} ${req.originalUrl}` 
   });
 });
-// 7. Global error handler
+
+// 8. Global error handler (ALSO LAST)
 app.use((err, req, res, next) => {
   console.error("🚨 SERVER ERROR:", err.stack);
   res.status(500).json({
@@ -148,11 +139,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 8. Start the server
+// 9. Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/`);
   console.log(`📍 Ping: http://localhost:${PORT}/api/ping`);
   console.log(`🔍 CORS Debug: http://localhost:${PORT}/api/debug-cors`);
+  console.log(`📊 Admin Logs: http://localhost:${PORT}/api/admin/timelogs`);
 });
