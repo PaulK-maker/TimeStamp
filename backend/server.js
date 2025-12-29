@@ -96,11 +96,17 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 
-// 6. Handle unmatched routes (404)
-app.use("*", (req, res) => {
-  res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}` });
-});
+// // 6. Handle unmatched routes (404)
+// app.use("*", (req, res) => {
+//   res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}` });
+// });
 
+// ✅ FIXED - Move this to the VERY END of your file (after all app.use("/api/...") routes)
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: `Cannot ${req.method} ${req.originalUrl}` 
+  });
+});
 // 7. Global error handler
 app.use((err, req, res, next) => {
   console.error("🚨 SERVER ERROR:", err.stack);
