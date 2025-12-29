@@ -125,6 +125,32 @@ app.get("/api/timeclock/mylogs", (req, res) => {
   });
 });
 
+// ✅ Mock Punch In (POST)
+app.post("/api/timeclock/punch-in", (req, res) => {
+  res.json({ 
+    message: "Clocked in successfully!",
+    punchIn: new Date().toISOString(),
+    logId: "new-shift-" + Date.now()
+  });
+});
+
+// ✅ Mock Punch Out (POST) 
+app.post("/api/timeclock/punch-out", (req, res) => {
+  res.json({ 
+    message: "Clocked out successfully!",
+    punchOut: new Date().toISOString(),
+    hours: Math.random() * 8 + 1  // Random 1-9 hours
+  });
+});
+
+// ✅ Mock Check Current Status (GET)
+app.get("/api/timeclock/status", (req, res) => {
+  res.json({ 
+    clockedIn: Math.random() > 0.5,  // Random status
+    currentShift: Math.random() > 0.5 ? { punchIn: "2025-12-28T14:00:00Z" } : null
+  });
+});
+
 // 5. Authentication route (CLEAN - no nested routes)
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
