@@ -125,6 +125,24 @@ app.get("/api/timeclock/mylogs", (req, res) => {
   });
 });
 
+// ✅ Caregiver logs (alias, same data, safer naming)
+app.get("/api/caregiver/timelogs", (req, res) => {
+  res.json({
+    logs: [
+      {
+        _id: "cg1-1",
+        punchIn: "2025-12-28T10:00:00Z",
+        punchOut: "2025-12-28T18:00:00Z"
+      },
+      {
+        _id: "cg1-2",
+        punchIn: "2025-12-28T09:00:00Z",
+        punchOut: null
+      }
+    ]
+  });
+});
+
 // ✅ Mock Punch In (POST)
 app.post("/api/timeclock/punch-in", (req, res) => {
   res.json({ 
