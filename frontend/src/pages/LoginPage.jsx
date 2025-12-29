@@ -25,12 +25,46 @@ const LoginPage = () => {
       localStorage.setItem("token", token);
 
       // Only allow admin
-      if (caregiver?.role !== "admin") {
-        localStorage.removeItem("token");
-        setError("Access denied: Admins only");
-        return;
-      }
-        navigate("/admin");
+      // if (caregiver?.role !== "admin") {
+      //   localStorage.removeItem("token");
+      //   setError("Access denied: Admins only");
+      //   return;
+      // }
+      //   navigate("/admin");
+
+      const handleLogin = async (e) => {
+  e.preventDefault();
+  setError("");
+
+  try {
+    const res = await api.post("/auth/login", { email, password });
+    console.log("LOGIN RESPONSE:", res.data);
+
+    const { token, caregiver } = res.data;
+
+    if (!token || !caregiver?.role) {
+      throw new Error("Invalid login response");
+    }
+
+    // ✅ Save auth data
+    localStorage.setItem("token", token);
+    localStorage.setItem("role", caregiver.role);
+
+    // ✅ Role-based redirect
+    if (caregiver.role === "admin") {
+      navigate("/admin");
+    } else if (caregiver.role === "caregiver") {
+      navigate("/caregiver");
+    } else {
+      setError("Unknown role");
+      localStorage.clear();
+    }
+
+  } catch (err) {
+    console.error("LOGIN ERROR:", err);
+    setError(err.response?.data?.message || err.message || "Login failed");
+  }
+};
       // Go to admin dashboard
       navigate("/admin");
     } catch (err) {
