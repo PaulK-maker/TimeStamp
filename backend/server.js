@@ -94,6 +94,37 @@ app.get("/api/admin/timelogs", (req, res) => {
   });
 });
 
+
+// ✅ PUBLIC Caregiver logs (no auth required for now)
+app.get("/api/timeclock/mylogs", (req, res) => {
+  res.json({
+    logs: [
+      {
+        _id: "cg1-1",
+        caregiver: {
+          _id: "cg1",
+          firstName: "Sarah",
+          lastName: "Jones",
+          email: "sarah.jones@test.com"
+        },
+        punchIn: "2025-12-28T10:00:00Z",
+        punchOut: "2025-12-28T18:00:00Z"
+      },
+      {
+        _id: "cg1-2",
+        caregiver: {
+          _id: "cg1",
+          firstName: "Sarah",
+          lastName: "Jones",
+          email: "sarah.jones@test.com"
+        },
+        punchIn: "2025-12-28T09:00:00Z",
+        punchOut: null  // Currently clocked in
+      }
+    ]
+  });
+});
+
 // 5. Authentication route (CLEAN - no nested routes)
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
