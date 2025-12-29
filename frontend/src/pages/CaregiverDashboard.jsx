@@ -689,85 +689,124 @@ const CaregiverDashboard = () => {
   }, []);
 
   // 📡 Fetch caregiver logs
+  // const fetchMyLogs = async () => {
+  //   try {
+  //     setLoading(true);
+  //     setError("");
+
+  //     // ✅ caregiver-specific route
+  //     const res = await api.get("/caregiver/timelogs");
+  //     const logsData = res.data.logs || [];
+
+  //     setLogs(logsData);
+  //     calculateTotals(logsData);
+
+  //     const activeShift = logsData.find(
+  //       (log) => log.punchIn && !log.punchOut
+  //     );
+  //     setCurrentlyClockedIn(Boolean(activeShift));
+
+  //     const storedUser = localStorage.getItem("user");
+  //     if (storedUser) {
+  //       const parsed = JSON.parse(storedUser);
+  //       setUserInfo(parsed.caregiver || null);
+  //     }
+  //   } catch (err) {
+  //     console.error("FETCH LOGS ERROR:", err);
+
+  //     if (err.response?.status === 401) {
+  //       logout();
+  //       return;
+  //     }
+
+  //     setError("Failed to load logs");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
   const fetchMyLogs = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      // ✅ caregiver-specific route
-      const res = await api.get("/caregiver/timelogs");
-      const logsData = res.data.logs || [];
-
-      setLogs(logsData);
-      calculateTotals(logsData);
-
-      const activeShift = logsData.find(
-        (log) => log.punchIn && !log.punchOut
-      );
-      setCurrentlyClockedIn(Boolean(activeShift));
-
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setUserInfo(parsed.caregiver || null);
-      }
-    } catch (err) {
-      console.error("FETCH LOGS ERROR:", err);
-
-      if (err.response?.status === 401) {
-        logout();
-        return;
-      }
-
-      setError("Failed to load logs");
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setError("");
+    setLoading(true);
+    const res = await api.get("/timeclock/my-logs");  // ✅ Fixed
+    setLogs(res.data.logs || []);
+  } catch (err) {
+    console.error("FETCH LOGS ERROR:", err);
+    setError(err.response?.data?.message || "Failed to load logs");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 🟢 Punch In
+  // const handlePunchIn = async () => {
+  //   try {
+  //     setLoading(true);
+  //     setError("");
+
+  //     await api.post("/timeclock/punch-in");
+  //     await fetchMyLogs();
+  //   } catch (err) {
+  //     console.error("PUNCH IN ERROR:", err);
+
+  //     if (err.response?.status === 401) {
+  //       logout();
+  //       return;
+  //     }
+
+  //     setError("Punch in failed");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // // 🔴 Punch Out
+  // const handlePunchOut = async () => {
+  //   try {
+  //     setLoading(true);
+  //     setError("");
+
+  //     await api.post("/timeclock/punch-out");
+  //     await fetchMyLogs();
+  //   } catch (err) {
+  //     console.error("PUNCH OUT ERROR:", err);
+
+  //     if (err.response?.status === 401) {
+  //       logout();
+  //       return;
+  //     }
+
+  //     setError("Punch out failed");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const handlePunchIn = async () => {
-    try {
-      setLoading(true);
-      setError("");
+  try {
+    setError("");
+    setLoading(true);
+    await api.post("/timeclock/punch-in", {});  // ✅ Fixed
+    await fetchMyLogs();
+  } catch (err) {
+    setError(err.response?.data?.message || "Punch in failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
-      await api.post("/timeclock/punch-in");
-      await fetchMyLogs();
-    } catch (err) {
-      console.error("PUNCH IN ERROR:", err);
-
-      if (err.response?.status === 401) {
-        logout();
-        return;
-      }
-
-      setError("Punch in failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🔴 Punch Out
-  const handlePunchOut = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      await api.post("/timeclock/punch-out");
-      await fetchMyLogs();
-    } catch (err) {
-      console.error("PUNCH OUT ERROR:", err);
-
-      if (err.response?.status === 401) {
-        logout();
-        return;
-      }
-
-      setError("Punch out failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handlePunchOut = async () => {
+  try {
+    setError("");
+    setLoading(true);
+    await api.post("/timeclock/punch-out", {});  // ✅ Fixed
+    await fetchMyLogs();
+  } catch (err) {
+    setError(err.response?.data?.message || "Punch out failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchMyLogs();
