@@ -34,18 +34,15 @@ const CaregiverDashboard = () => {
       setError("");
       setLoading(true);
       
-      // ✅ FIXED: Correct API path to match backend
       const res = await api.get("/api/timeclock/mylogs");
       const logsData = res.data.logs || [];
       
       setLogs(logsData);
       calculateTotals(logsData);
       
-      // Check if currently clocked in
       const activeShift = logsData.find(log => log.punchIn && !log.punchOut);
       setCurrentlyClockedIn(!!activeShift);
       
-      // Get user info from localStorage (set at login)
       try {
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
         setUserInfo(userData.caregiver);
@@ -55,11 +52,15 @@ const CaregiverDashboard = () => {
       
     } catch (err) {
       console.error("FETCH LOGS ERROR:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load logs");
       
       if (err.response?.status === 401) {
-        logout();
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
       }
+      
+      setError(err.response?.data?.message || err.message || "Failed to load logs");
     } finally {
       setLoading(false);
     }
@@ -73,7 +74,15 @@ const CaregiverDashboard = () => {
       await fetchMyLogs();
     } catch (err) {
       console.error("PUNCH IN ERROR:", err);
-      setError(err.response?.data?.message || err.message || "Punch in failed");
+      
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+      
+      setError(err.response?.data?.message || "Punch in failed");
     } finally {
       setLoading(false);
     }
@@ -87,7 +96,15 @@ const CaregiverDashboard = () => {
       await fetchMyLogs();
     } catch (err) {
       console.error("PUNCH OUT ERROR:", err);
-      setError(err.response?.data?.message || err.message || "Punch out failed");
+      
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+      
+      setError(err.response?.data?.message || "Punch out failed");
     } finally {
       setLoading(false);
     }
