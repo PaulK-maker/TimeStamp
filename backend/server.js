@@ -13,29 +13,36 @@ const app = express();
 // 1. Connect to MongoDB
 connectDB();
 
-// 2. Configure CORS
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "https://timecapcha-frontend.onrender.com"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-  })
-);
+// ✅ FIXED CORS - Single cors() middleware with dynamic origin validation
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://timecapcha-frontend.onrender.com"
+];
 
-// Hardcoded CORS fallback to handle preflight requests directly
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
-// 3. Body parsers for JSON and URL-encoded requests
+// ❌ REMOVE THIS - it was conflicting with cors() middleware above
+// app.use((req, res, next) => { ... });
+
+// 2. Body parsers for JSON and URL-encoded requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 4. Health and test endpoints
+// 3. Health and test endpoints
 app.get("/", (req, res) => {
   res.json({
     message: "Caregiver Time Clock API ✅",
@@ -52,7 +59,15 @@ app.post("/api/test", (req, res) => {
   res.json({ message: "POST test OK", body: req.body });
 });
 
-// 5. Authentication route (sample implementation)
+// 🔍 DEBUG ENDPOINT - Check what origin your frontend is sending
+app.options("/api/debug-cors", (req, res) => {
+  res.json({ 
+    origin: req.headers.origin,
+    method: req.headers['access-control-request-method']
+  });
+});
+
+// 4. Authentication route (sample implementation)
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
   
@@ -75,18 +90,18 @@ app.post("/api/auth/login", (req, res) => {
   res.status(401).json({ message: "Invalid credentials" });
 });
 
-// 6. Additional API routes
+// 5. Additional API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 
-// 7. Handle unmatched routes (404)
+// 6. Handle unmatched routes (404)
 app.use("*", (req, res) => {
   res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}` });
 });
 
-// 8. Global error handler
+// 7. Global error handler
 app.use((err, req, res, next) => {
   console.error("🚨 SERVER ERROR:", err.stack);
   res.status(500).json({
@@ -95,10 +110,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 9. Start the server
+// 8. Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/`);
   console.log(`📍 Ping: http://localhost:${PORT}/api/ping`);
+  console.log(`🔍 CORS Debug: http://localhost:${PORT}/api/debug-cors`);
 });
