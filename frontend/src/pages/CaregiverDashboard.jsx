@@ -724,19 +724,19 @@ const CaregiverDashboard = () => {
   //     setLoading(false);
   //   }
   // };
-//   const fetchMyLogs = async () => {
-//   try {
-//     setError("");
-//     setLoading(true);
-//     const res = await api.get("/timeclock/my-logs");  // ✅ Fixed
-//     setLogs(res.data.logs || []);
-//   } catch (err) {
-//     console.error("FETCH LOGS ERROR:", err);
-//     setError(err.response?.data?.message || "Failed to load logs");
-//   } finally {
-//     setLoading(false);
-//   }
-// };
+  const fetchMyLogs = async () => {
+  try {
+    setError("");
+    setLoading(true);
+    const res = await api.get("/timeclock/my-logs");  // ✅ Fixed
+    setLogs(res.data.logs || []);
+  } catch (err) {
+    console.error("FETCH LOGS ERROR:", err);
+    setError(err.response?.data?.message || "Failed to load logs");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 🟢 Punch In
   // const handlePunchIn = async () => {
@@ -782,44 +782,13 @@ const CaregiverDashboard = () => {
   //   }
   // };
 
- const fetchMyLogs = async () => {
+  const handlePunchIn = async () => {
   try {
     setError("");
     setLoading(true);
-    // ✅ FIXED PATH
-    const res = await api.get("/timeclock/mylogs");
-    const logsData = res.data.logs || [];
-    setLogs(logsData);
-    // ... rest of your logic
-  } catch (err) {
-    console.error("FETCH LOGS ERROR:", err);
-    if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-      return;
-    }
-    setError(err.response?.data?.message || "Failed to load logs");
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handlePunchIn = async () => {
-  try {
-    setError("");
-    setLoading(true);
-    // ✅ FIXED PATH
-    await api.post("/timeclock/punch-in", {});
+    await api.post("/timeclock/punch-in", {});  // ✅ Fixed
     await fetchMyLogs();
   } catch (err) {
-    console.error("PUNCH IN ERROR:", err);
-    if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-      return;
-    }
     setError(err.response?.data?.message || "Punch in failed");
   } finally {
     setLoading(false);
@@ -830,17 +799,9 @@ const handlePunchOut = async () => {
   try {
     setError("");
     setLoading(true);
-    // ✅ FIXED PATH
-    await api.post("/timeclock/punch-out", {});
+    await api.post("/timeclock/punch-out", {});  // ✅ Fixed
     await fetchMyLogs();
   } catch (err) {
-    console.error("PUNCH OUT ERROR:", err);
-    if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-      return;
-    }
     setError(err.response?.data?.message || "Punch out failed");
   } finally {
     setLoading(false);
