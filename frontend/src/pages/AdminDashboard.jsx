@@ -303,8 +303,8 @@ const AdminDashboard = () => {
         throw new Error("No auth token found");
       }
 
-      // Fetch from correct admin endpoint
-      const res = await api.get("/api/admin/timelogs", {
+      // NOTE: api baseURL already includes `/api`, so do not prefix `/api` again.
+      const res = await api.get("/admin/timelogs", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -346,7 +346,12 @@ const AdminDashboard = () => {
     fetchTimeLogs();
   }, [navigate, fetchTimeLogs]);
 
-  const formatHours = (hours) => hours ? hours.toFixed(2) : "-";
+  const formatHours = (hours) => {
+    if (hours === null || hours === undefined) return "-";
+    const numericHours = typeof hours === "string" ? Number(hours) : hours;
+    if (typeof numericHours !== "number" || Number.isNaN(numericHours)) return "-";
+    return numericHours.toFixed(2);
+  };
   const formatDateTime = (dateString) => 
     dateString ? new Date(dateString).toLocaleString() : "-";
 
@@ -443,8 +448,8 @@ const AdminDashboard = () => {
                 <tbody>
                   {logs.map((log) => {
                     const hours = log.punchIn && log.punchOut
-                      ? ((new Date(log.punchOut) - new Date(log.punchIn)) / (1000 * 60 * 60)).toFixed(2)
-                      : "-";
+                      ? (new Date(log.punchOut) - new Date(log.punchIn)) / (1000 * 60 * 60)
+                      : null;
                     
                     return (
                       <tr key={log._id} style={{ borderBottom: "1px solid #dee2e6" }}>

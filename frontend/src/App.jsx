@@ -39,6 +39,9 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Default route */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
         {/* Admin login */}
         <Route path="/login" element={<LoginPage />} />
 
@@ -51,8 +54,8 @@ function App() {
         {/* Admin dashboard */}
         <Route path="/admin" element={<AdminDashboard />} />
 
-        {/* Optional: default route */}
-        {/* <Route path="*" element={<Navigate to="/login" />} /> */}
+        {/* Catch-all route */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

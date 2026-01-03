@@ -37,6 +37,8 @@ const {
 router.post("/punch-in", protect, punchIn);
 router.post("/punch-out", protect, punchOut);
 router.get("/my-logs", protect, getMyTimeEntries);
+// Backward-compatible alias for older clients
+router.get("/mylogs", protect, getMyTimeEntries);
 
 // existing admin endpoints (optional)
 router.get("/:caregiverId", protect, getTimeEntries);

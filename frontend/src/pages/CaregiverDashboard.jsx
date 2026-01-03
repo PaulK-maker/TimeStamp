@@ -798,8 +798,10 @@ const CaregiverDashboard = () => {
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
+    localStorage.removeItem("role");
     localStorage.removeItem("user");
-    navigate("/login", { replace: true });
+    localStorage.removeItem("caregiver");
+    navigate("/caregiver-login", { replace: true });
   }, [navigate]);
 
   const calculateTotals = useCallback((logsData) => {
@@ -815,12 +817,12 @@ const CaregiverDashboard = () => {
     setCurrentlyClockedIn(!!activeShift);
   }, []);
 
-  // ✅ FIXED: mylogs (no hyphen) + full logic
+  // ✅ FIXED: backend route is /my-logs
   const fetchMyLogs = async () => {
     try {
       setError("");
       setLoading(true);
-      const res = await api.get("/timeclock/mylogs");  // ✅ CORRECT PATH
+      const res = await api.get("/timeclock/my-logs");
       const logsData = res.data.logs || [];
       
       setLogs(logsData);

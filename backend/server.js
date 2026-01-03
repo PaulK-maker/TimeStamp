@@ -108,6 +108,18 @@ if (ENABLE_MOCK_API) {
     });
   });
 
+  app.get("/api/timeclock/my-logs", (req, res) => {
+    res.json({
+      logs: [
+        {
+          _id: "cg1-1",
+          punchIn: "2025-12-28T10:00:00Z",
+          punchOut: "2025-12-28T18:00:00Z",
+        },
+      ],
+    });
+  });
+
   app.post("/api/timeclock/punch-in", (req, res) => {
     res.json({
       message: "Clocked in successfully!",

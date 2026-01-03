@@ -23,6 +23,10 @@ const CaregiverLoginPage = () => {
       // Save token (caregiver token is fine)
       localStorage.setItem("token", token);
 
+      // Keep auth storage consistent across the app
+      localStorage.setItem("role", caregiver?.role || "caregiver");
+      localStorage.setItem("user", JSON.stringify({ caregiver }));
+
       // Optionally store caregiver info too
       localStorage.setItem("caregiver", JSON.stringify(caregiver));
 
