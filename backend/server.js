@@ -14,17 +14,25 @@ const app = express();
 connectDB();
 
 // 2. ✅ FIXED CORS - Single cors() middleware with dynamic origin validation
-const allowedOrigins = [
+// Supports optional comma-separated ALLOWED_ORIGINS env var for additional deployments.
+const allowedOrigins = new Set([
   "http://localhost:3000",
-  "https://timecapcha-frontend.onrender.com"
-];
+  "http://localhost:3001",
+  "https://timecapcha-frontend.onrender.com",
+]);
+
+const extraAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+extraAllowedOrigins.forEach((o) => allowedOrigins.add(o));
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.has(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS blocked: ${origin}`));
@@ -64,133 +72,97 @@ app.options("/api/debug-cors", (req, res) => {
   });
 });
 
-// ✅ FIXED - Mock admin timelogs (TOP LEVEL - accessible to frontend)
-app.get("/api/admin/timelogs", (req, res) => {
-  res.json({
-    logs: [
-      {
-        _id: "1",
-        caregiver: {
-          _id: "cg1",
-          firstName: "Sarah",
-          lastName: "Jones",
-          email: "sarah.jones@test.com"
+// Optional mock API endpoints (disabled by default).
+// These previously shadowed the real JWT+DB-backed routes in production.
+const ENABLE_MOCK_API = process.env.ENABLE_MOCK_API === "true";
+if (ENABLE_MOCK_API) {
+  app.get("/api/admin/timelogs", (req, res) => {
+    res.json({
+      logs: [
+        {
+          _id: "1",
+          caregiver: {
+            _id: "cg1",
+            firstName: "Sarah",
+            lastName: "Jones",
+            email: "sarah.jones@test.com",
+          },
+          punchIn: "2025-12-28T10:00:00Z",
+          punchOut: "2025-12-28T18:00:00Z",
+          totalHours: "8.00",
         },
-        punchIn: "2025-12-28T10:00:00Z",
-        punchOut: "2025-12-28T18:00:00Z"
-      },
-      {
-        _id: "2",
-        caregiver: {
-          _id: "cg2",
-          firstName: "John",
-          lastName: "Doe",
-          email: "john.doe@test.com"
-        },
-        punchIn: "2025-12-28T09:00:00Z",
-        punchOut: null
-      }
-    ]
-  });
-});
-
-
-// ✅ PUBLIC Caregiver logs (no auth required for now)
-app.get("/api/timeclock/mylogs", (req, res) => {
-  res.json({
-    logs: [
-      {
-        _id: "cg1-1",
-        caregiver: {
-          _id: "cg1",
-          firstName: "Sarah",
-          lastName: "Jones",
-          email: "sarah.jones@test.com"
-        },
-        punchIn: "2025-12-28T10:00:00Z",
-        punchOut: "2025-12-28T18:00:00Z"
-      },
-      {
-        _id: "cg1-2",
-        caregiver: {
-          _id: "cg1",
-          firstName: "Sarah",
-          lastName: "Jones",
-          email: "sarah.jones@test.com"
-        },
-        punchIn: "2025-12-28T09:00:00Z",
-        punchOut: null  // Currently clocked in
-      }
-    ]
-  });
-});
-
-// ✅ Caregiver logs (alias, same data, safer naming)
-app.get("/api/caregiver/timelogs", (req, res) => {
-  res.json({
-    logs: [
-      {
-        _id: "cg1-1",
-        punchIn: "2025-12-28T10:00:00Z",
-        punchOut: "2025-12-28T18:00:00Z"
-      },
-      {
-        _id: "cg1-2",
-        punchIn: "2025-12-28T09:00:00Z",
-        punchOut: null
-      }
-    ]
-  });
-});
-
-// ✅ Mock Punch In (POST)
-app.post("/api/timeclock/punch-in", (req, res) => {
-  res.json({ 
-    message: "Clocked in successfully!",
-    punchIn: new Date().toISOString(),
-    logId: "new-shift-" + Date.now()
-  });
-});
-
-// ✅ Mock Punch Out (POST) 
-app.post("/api/timeclock/punch-out", (req, res) => {
-  res.json({ 
-    message: "Clocked out successfully!",
-    punchOut: new Date().toISOString(),
-    hours: Math.random() * 8 + 1  // Random 1-9 hours
-  });
-});
-
-// ✅ Mock Check Current Status (GET)
-app.get("/api/timeclock/status", (req, res) => {
-  res.json({ 
-    clockedIn: Math.random() > 0.5,  // Random status
-    currentShift: Math.random() > 0.5 ? { punchIn: "2025-12-28T14:00:00Z" } : null
-  });
-});
-
-// 5. Authentication route (CLEAN - no nested routes)
-app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
-  
-  // Mock credentials (for local testing only)
-  const users = [
-    { email: "admin@example.com", password: "Admin123!", role: "admin", id: "1" },
-    { email: "sarah.jones@test.com", password: "Sarah123!", role: "caregiver", id: "2" },
-  ];
-
-  const user = users.find((u) => u.email === email && u.password === password);
-
-  if (user) {
-    return res.json({
-      message: "Login successful",
-      token: `fake-token-for-${user.role}`,
-      caregiver: { email: user.email, role: user.role, id: user.id },
+      ],
+      totalHoursPerCaregiver: [],
     });
-  }
+  });
 
-  res.status(401).json({ message: "Invalid credentials" });
-});
+  app.get("/api/timeclock/mylogs", (req, res) => {
+    res.json({
+      logs: [
+        {
+          _id: "cg1-1",
+          punchIn: "2025-12-28T10:00:00Z",
+          punchOut: "2025-12-28T18:00:00Z",
+        },
+      ],
+    });
+  });
+
+  app.post("/api/timeclock/punch-in", (req, res) => {
+    res.json({
+      message: "Clocked in successfully!",
+      punchIn: new Date().toISOString(),
+      logId: "new-shift-" + Date.now(),
+    });
+  });
+
+  app.post("/api/timeclock/punch-out", (req, res) => {
+    res.json({
+      message: "Clocked out successfully!",
+      punchOut: new Date().toISOString(),
+      hours: Math.random() * 8 + 1,
+    });
+  });
+
+  app.get("/api/timeclock/status", (req, res) => {
+    res.json({
+      clockedIn: Math.random() > 0.5,
+      currentShift:
+        Math.random() > 0.5 ? { punchIn: "2025-12-28T14:00:00Z" } : null,
+    });
+  });
+
+  app.post("/api/auth/login", (req, res) => {
+    const { email, password } = req.body;
+
+    const users = [
+      {
+        email: "admin@example.com",
+        password: "Admin123!",
+        role: "admin",
+        id: "1",
+      },
+      {
+        email: "sarah.jones@test.com",
+        password: "Sarah123!",
+        role: "caregiver",
+        id: "2",
+      },
+    ];
+
+    const user = users.find((u) => u.email === email && u.password === password);
+
+    if (user) {
+      return res.json({
+        message: "Login successful",
+        token: `fake-token-for-${user.role}`,
+        caregiver: { email: user.email, role: user.role, id: user.id },
+      });
+    }
+
+    res.status(401).json({ message: "Invalid credentials" });
+  });
+}
 
 // 6. Additional API routes
 app.use("/api/auth", authRoutes);
