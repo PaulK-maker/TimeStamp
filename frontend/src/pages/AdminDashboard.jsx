@@ -365,7 +365,7 @@ const AdminDashboard = () => {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
-      <Header />
+      <Header title="Admin Dashboard" />
       <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h1 style={{ margin: 0, color: "#333" }}>Admin Dashboard</h1>
