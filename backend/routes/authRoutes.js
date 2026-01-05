@@ -45,9 +45,17 @@ const express = require("express");
 const router = express.Router();
 const { register, login } = require("../controllers/authController");
 const Caregiver = require("../models/caregiver");
+const requireAuth = require("../middleware/authMiddleware");
 
 router.post("/register", register);
 router.post("/login", login);
+
+// Verify authentication (Clerk preferred, JWT fallback)
+router.get("/me", requireAuth, (req, res) => {
+  res.json({
+    user: req.user,
+  });
+});
 
 // TEMP: create one admin user (no next)
 router.get("/create-admin-once", async (req, res) => {

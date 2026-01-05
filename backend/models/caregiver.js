@@ -21,9 +21,19 @@ const caregiverSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.clerkUserId;
+      },
       minlength: 6,
       select: false, // hide password by default
+    },
+    // When using Clerk auth, we link the external user id here.
+    clerkUserId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      trim: true,
     },
     role: {
       type: String,
@@ -40,7 +50,7 @@ const caregiverSchema = new mongoose.Schema(
 
 // Hash password before save
 caregiverSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
+  if (!this.isModified("password") || !this.password) return;
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
