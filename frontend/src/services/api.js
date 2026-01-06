@@ -37,6 +37,7 @@
 // export default api;
 
 import axios from "axios";
+import { getAuthToken } from "./authToken";
 
 // Base URL selection:
 // - If REACT_APP_API_BASE_URL is set, use it.
@@ -53,10 +54,12 @@ const api = axios.create({
 });
 
 // Attach token automatically to ALL requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+api.interceptors.request.use(async (config) => {
+  const token = await getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
   }
   return config;
 });

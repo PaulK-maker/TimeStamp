@@ -265,8 +265,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    navigate("/login", { replace: true });
+    navigate("/sign-out", { replace: true });
   }, [navigate]);
 
   const calculateTotals = useCallback((logsData) => {
@@ -297,16 +296,8 @@ const AdminDashboard = () => {
     setRefreshing(false);
 
     try {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        throw new Error("No auth token found");
-      }
-
-      // NOTE: api baseURL already includes `/api`, so do not prefix `/api` again.
-      const res = await api.get("/admin/timelogs", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // NOTE: axios interceptor attaches Clerk token automatically when signed in.
+      const res = await api.get("/admin/timelogs");
 
       const logsData = Array.isArray(res.data.logs) ? res.data.logs : [];
       setLogs(logsData);
@@ -329,7 +320,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [refreshing, navigate, calculateTotals, logout]);
+  }, [refreshing, calculateTotals, logout]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -337,14 +328,8 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login", { replace: true });
-      return;
-    }
-    
     fetchTimeLogs();
-  }, [navigate, fetchTimeLogs]);
+  }, [fetchTimeLogs]);
 
   const formatHours = (hours) => {
     if (hours === null || hours === undefined) return "-";

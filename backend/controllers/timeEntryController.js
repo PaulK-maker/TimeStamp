@@ -1,12 +1,29 @@
 const TimeEntry = require("../models/TimeEntry");
+const mongoose = require("mongoose");
+const Caregiver = require("../models/caregiver");
+
+const resolveCaregiverObjectId = async (req) => {
+  const candidate = req.user?.caregiverId || req.user?.id;
+  if (!candidate) return null;
+
+  if (mongoose.Types.ObjectId.isValid(candidate)) return candidate;
+
+  // Clerk user ids look like "user_..."; map them to a Caregiver record.
+  const caregiver = await Caregiver.findOne({ clerkUserId: candidate }).select(
+    "_id"
+  );
+  return caregiver?._id?.toString() || null;
+};
 
 // @desc   Punch IN
 // @route  POST /api/timeclock/punch-in
 // @access Private (caregiver)
 const punchIn = async (req, res) => {
   try {
-    // caregiver id comes from auth middleware (decoded JWT)
-    const caregiverId = req.user.id; // or req.user._id if that's how you set it
+    const caregiverId = await resolveCaregiverObjectId(req);
+    if (!caregiverId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     const { notes } = req.body;
 
     // Check for active shift
@@ -39,7 +56,10 @@ const punchIn = async (req, res) => {
 // @access Private (caregiver)
 const punchOut = async (req, res) => {
   try {
-    const caregiverId = req.user.id;
+    const caregiverId = await resolveCaregiverObjectId(req);
+    if (!caregiverId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const activeShift = await TimeEntry.findOne({
       caregiver: caregiverId,
@@ -67,7 +87,10 @@ const punchOut = async (req, res) => {
 // @access Private (caregiver)
 const getMyTimeEntries = async (req, res) => {
   try {
-    const caregiverId = req.user.id;
+    const caregiverId = await resolveCaregiverObjectId(req);
+    if (!caregiverId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const entries = await TimeEntry.find({
       caregiver: caregiverId,

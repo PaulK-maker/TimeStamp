@@ -47,6 +47,32 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 3.5 Clerk auth (optional during migration)
+// If CLERK_SECRET_KEY is configured, Clerk will parse/validate auth info from requests.
+// We keep this optional so existing JWT auth continues to work until the frontend is migrated.
+{
+  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+  // Support common env var names across CRA/Vite + backend.
+  const clerkPublishableKey =
+    process.env.CLERK_PUBLISHABLE_KEY ||
+    process.env.VITE_CLERK_PUBLISHABLE_KEY ||
+    process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
+
+  if (clerkSecretKey && clerkPublishableKey) {
+    const { clerkMiddleware } = require("@clerk/express");
+    app.use(
+      clerkMiddleware({
+        secretKey: clerkSecretKey,
+        publishableKey: clerkPublishableKey,
+      })
+    );
+  } else if (clerkSecretKey && !clerkPublishableKey) {
+    console.warn(
+      "⚠️  CLERK_SECRET_KEY is set but no publishable key was found (CLERK_PUBLISHABLE_KEY/VITE_CLERK_PUBLISHABLE_KEY/REACT_APP_CLERK_PUBLISHABLE_KEY). Clerk middleware disabled."
+    );
+  }
+}
+
 // 4. Health and test endpoints
 app.get("/", (req, res) => {
   res.json({
