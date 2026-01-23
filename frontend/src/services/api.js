@@ -45,7 +45,7 @@ import { getAuthToken } from "./authToken";
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL ||
   (typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:5000"
+    ? "http://localhost:5001"
     : "https://timecapcha.onrender.com");
 
 // Create axios instance with base URL

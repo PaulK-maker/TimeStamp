@@ -3,7 +3,12 @@ const router = express.Router();
 
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
-const { getAllTimeLogs } = require("../controllers/adminControllers");
+const {
+  getAllTimeLogs,
+  promoteCaregiverToAdmin,
+  demoteAdminToCaregiver,
+  deleteUser,
+} = require("../controllers/adminControllers");
 
 router.get(
   "/dashboard",
@@ -19,6 +24,30 @@ router.get(
   auth,
   authorizeRoles("admin"),
   getAllTimeLogs
+);
+
+// Promote an existing caregiver to admin by email
+router.post(
+  "/promote",
+  auth,
+  authorizeRoles("admin"),
+  promoteCaregiverToAdmin
+);
+
+// Demote an admin to caregiver (by id or email)
+router.post(
+  "/demote",
+  auth,
+  authorizeRoles("admin"),
+  demoteAdminToCaregiver
+);
+
+// Delete (deprovision) a user (Clerk + local deactivate)
+router.delete(
+  "/users/:caregiverId",
+  auth,
+  authorizeRoles("admin"),
+  deleteUser
 );
 
 module.exports = router;

@@ -3,8 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import Header from "../components/Header";
 import api from "../services/api";
+import { getMe } from "../services/me";
 
 const CaregiverDashboard = () => {
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
@@ -12,7 +15,23 @@ const CaregiverDashboard = () => {
   const [currentlyClockedIn, setCurrentlyClockedIn] = useState(false);
 
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      setIsAdmin(false);
+      return;
+    }
+
+    getMe({ forceRefresh: true })
+      .then((me) => setIsAdmin(me?.role === "admin"))
+      .catch(() => {
+        // If /auth/me briefly fails during sign-in, we don't want to break the page.
+        // Admin button will simply not render.
+        setIsAdmin(false);
+      });
+  }, [isLoaded, isSignedIn]);
 
   const logout = useCallback(() => {
     navigate("/sign-out", { replace: true });
@@ -93,8 +112,9 @@ const CaregiverDashboard = () => {
   };
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
     fetchMyLogs();
-  }, [fetchMyLogs]);
+  }, [fetchMyLogs, isLoaded, isSignedIn]);
 
   const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : "-");
 
@@ -124,18 +144,35 @@ const CaregiverDashboard = () => {
               </p>
             )}
           </div>
-          <button
-            onClick={logout}
-            style={{
-              background: "#dc3545",
-              color: "white",
-              border: "none",
-              padding: "10px 20px",
-              borderRadius: "5px",
-            }}
-          >
-            Logout
-          </button>
+          <div>
+            {isAdmin && (
+              <button
+                onClick={() => navigate("/admin")}
+                style={{
+                  background: "#007bff",
+                  color: "white",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: "5px",
+                  marginRight: "10px",
+                }}
+              >
+                Switch to Admin View
+              </button>
+            )}
+            <button
+              onClick={logout}
+              style={{
+                background: "#dc3545",
+                color: "white",
+                border: "none",
+                padding: "10px 20px",
+                borderRadius: "5px",
+              }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {error && (

@@ -7,10 +7,10 @@ export function setAuthTokenProvider(provider) {
 export async function getAuthToken() {
 	if (tokenProvider) {
 		try {
-			const token = await tokenProvider();
-			if (token) return token;
+			return await tokenProvider();
 		} catch (err) {
-			// Ignore provider errors and fall back to legacy token.
+			// If Clerk is in control, don't fall back to legacy storage.
+			return null;
 		}
 	}
 

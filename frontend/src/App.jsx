@@ -28,27 +28,60 @@
 
 
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import CaregiverDashboard from "./pages/CaregiverDashboard"; // punch page
 import AdminDashboard from "./pages/AdminDashboard";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import ClerkTokenBridge from "./components/ClerkTokenBridge";
+import RequireAdmin from "./components/RequireAdmin";
+import TopNav from "./components/TopNav";
+import Footer from "./components/Footer";
 import SignInPage from "./pages/SignInPage";
+import SignUpPage from "./pages/SignUpPage";
 import PostSignIn from "./pages/PostSignIn";
 import SignOutPage from "./pages/SignOutPage";
+import AboutUs from "./pages/AboutUs";
+import ContactPage from "./pages/ContactPage";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import CalendarPage from "./pages/CalendarPage";
 
 function App() {
   return (
-    <Router>
+    <div className="appShell">
       <ClerkTokenBridge />
-      <Routes>
-        {/* Default route */}
-        <Route path="/" element={<Navigate to="/sign-in" replace />} />
+      <SignedIn>
+        <TopNav />
+      </SignedIn>
+      <div className="appContent">
+        <Routes>
+          {/* Default route */}
+          <Route
+            path="/"
+            element={
+              <>
+                <SignedIn>
+                  <Navigate to="/post-sign-in" replace />
+                </SignedIn>
+                <SignedOut>
+                  <Navigate to="/sign-in" replace />
+                </SignedOut>
+              </>
+            }
+          />
 
-        {/* Clerk sign-in */}
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/post-sign-in" element={<PostSignIn />} />
-        <Route path="/sign-out" element={<SignOutPage />} />
+          {/* Clerk sign-in */}
+          <Route path="/sign-in/*" element={<SignInPage />} />
+          <Route path="/sign-up/*" element={<SignUpPage />} />
+          <Route path="/post-sign-in" element={<PostSignIn />} />
+          <Route path="/sign-out" element={<SignOutPage />} />
+
+          {/* Public info pages */}
+          <Route path="/about" element={<AboutUs />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+
+          {/* Signed-in tools */}
+          <Route path="/calendar" element={<CalendarPage />} />
 
         {/* Legacy login routes -> Clerk */}
         <Route path="/login" element={<Navigate to="/sign-in" replace />} />
@@ -73,21 +106,18 @@ function App() {
         <Route
           path="/admin"
           element={
-            <>
-              <SignedIn>
-                <AdminDashboard />
-              </SignedIn>
-              <SignedOut>
-                <Navigate to="/sign-in" replace />
-              </SignedOut>
-            </>
+            <RequireAdmin>
+              <AdminDashboard />
+            </RequireAdmin>
           }
         />
 
-        {/* Catch-all route */}
-        <Route path="*" element={<Navigate to="/sign-in" replace />} />
-      </Routes>
-    </Router>
+          {/* Catch-all route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+      <Footer />
+    </div>
   );
 }
 

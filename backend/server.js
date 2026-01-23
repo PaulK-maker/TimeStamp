@@ -1,6 +1,9 @@
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+
+// Always load env from backend/.env, regardless of the process working directory.
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
@@ -58,17 +61,19 @@ app.use(express.urlencoded({ extended: true }));
     process.env.VITE_CLERK_PUBLISHABLE_KEY ||
     process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
 
-  if (clerkSecretKey && clerkPublishableKey) {
+  if (clerkSecretKey) {
     const { clerkMiddleware } = require("@clerk/express");
+    if (!clerkPublishableKey) {
+      console.warn(
+        "⚠️  CLERK_SECRET_KEY is set but no publishable key was found (CLERK_PUBLISHABLE_KEY/VITE_CLERK_PUBLISHABLE_KEY/REACT_APP_CLERK_PUBLISHABLE_KEY). Continuing without publishableKey."
+      );
+    }
+
     app.use(
       clerkMiddleware({
         secretKey: clerkSecretKey,
-        publishableKey: clerkPublishableKey,
+        ...(clerkPublishableKey ? { publishableKey: clerkPublishableKey } : {}),
       })
-    );
-  } else if (clerkSecretKey && !clerkPublishableKey) {
-    console.warn(
-      "⚠️  CLERK_SECRET_KEY is set but no publishable key was found (CLERK_PUBLISHABLE_KEY/VITE_CLERK_PUBLISHABLE_KEY/REACT_APP_CLERK_PUBLISHABLE_KEY). Clerk middleware disabled."
     );
   }
 }

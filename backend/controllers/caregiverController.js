@@ -6,7 +6,7 @@ const bcrypt = require("bcryptjs");  // ADD THIS LINE AT TOP
 
 const createCaregiver = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role } = req.body;
+    const { firstName, lastName, email, password } = req.body;
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -17,7 +17,7 @@ const createCaregiver = async (req, res) => {
       lastName,
       email,
       password: hashedPassword,
-      role: role || "caregiver",  // allow admin role
+      // role is DB-owned; do not accept from client
     });
     
     // Hide password in response
@@ -32,7 +32,9 @@ const createCaregiver = async (req, res) => {
 // @route  GET /api/caregivers
 const getCaregivers = async (req, res) => {
   try {
-    const caregivers = await Caregiver.find();
+    const caregivers = await Caregiver.find().select(
+      "firstName lastName email role clerkUserId isActive createdAt updatedAt"
+    );
     res.json(caregivers);
   } catch (error) {
     res.status(500).json({ message: error.message });

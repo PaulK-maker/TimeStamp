@@ -47,6 +47,10 @@ const { register, login } = require("../controllers/authController");
 const Caregiver = require("../models/caregiver");
 const requireAuth = require("../middleware/authMiddleware");
 
+const DEV_BOOTSTRAP_ENABLED =
+  process.env.ENABLE_DEV_BOOTSTRAP === "true" &&
+  process.env.NODE_ENV !== "production";
+
 router.post("/register", register);
 router.post("/login", login);
 
@@ -59,6 +63,10 @@ router.get("/me", requireAuth, (req, res) => {
 
 // TEMP: create one admin user (no next)
 router.get("/create-admin-once", async (req, res) => {
+  if (!DEV_BOOTSTRAP_ENABLED) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
   try {
     const email = "admin@example.com";
 

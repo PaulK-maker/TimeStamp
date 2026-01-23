@@ -1,7 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
+import { BrowserRouter, useNavigate } from "react-router-dom";
 import App from "./App";
+import "./index.css";
 
 const publishableKey = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
 const container = document.getElementById("root");
@@ -22,8 +24,21 @@ if (!publishableKey) {
 	);
 }
 
+function ClerkProviderWithRouter() {
+	const navigate = useNavigate();
+
+	return (
+		<ClerkProvider
+			publishableKey={publishableKey}
+			navigate={(to) => navigate(to)}
+		>
+			<App />
+		</ClerkProvider>
+	);
+}
+
 root.render(
-	<ClerkProvider publishableKey={publishableKey}>
-		<App />
-	</ClerkProvider>
+	<BrowserRouter>
+		<ClerkProviderWithRouter />
+	</BrowserRouter>
 );
