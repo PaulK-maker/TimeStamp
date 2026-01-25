@@ -1,6 +1,7 @@
 const TimeEntry = require("../models/TimeEntry");
 const mongoose = require("mongoose");
 const Caregiver = require("../models/caregiver");
+const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
 const resolveCaregiverObjectId = async (req) => {
   const candidate = req.user?.caregiverId || req.user?.id;
@@ -96,7 +97,31 @@ const getMyTimeEntries = async (req, res) => {
       caregiver: caregiverId,
     }).sort({ punchIn: -1 });
 
-    res.json({ logs: entries });
+    const entryIds = entries.map((e) => e._id);
+    const corrections = await TimeEntryCorrection.find({
+      timeEntry: { $in: entryIds },
+    })
+      .select("timeEntry effectivePunchIn effectivePunchOut")
+      .lean();
+
+    const correctionByEntryId = new Map(
+      corrections.map((c) => [String(c.timeEntry), c])
+    );
+
+    const logs = entries.map((entry) => {
+      const obj = entry.toObject();
+      const correction = correctionByEntryId.get(String(entry._id));
+      return {
+        ...obj,
+        effectivePunchIn: correction?.effectivePunchIn || obj.punchIn,
+        effectivePunchOut:
+          correction?.effectivePunchOut !== undefined
+            ? correction.effectivePunchOut
+            : obj.punchOut,
+      };
+    });
+
+    res.json({ logs });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: error.message });

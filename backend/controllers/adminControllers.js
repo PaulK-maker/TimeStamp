@@ -1,5 +1,6 @@
 const TimeEntry = require("../models/TimeEntry");
 const Caregiver = require("../models/caregiver");
+const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
 function normalizeEmail(email) {
   return (email || "").trim().toLowerCase();
@@ -53,16 +54,40 @@ exports.getAllTimeLogs = async (req, res) => {
     }
 
     if (startDate || endDate) {
-      query.clockIn = {};
-      if (startDate) query.clockIn.$gte = new Date(startDate);
-      if (endDate) query.clockIn.$lte = new Date(endDate);
+      query.punchIn = {};
+      if (startDate) query.punchIn.$gte = new Date(startDate);
+      if (endDate) query.punchIn.$lte = new Date(endDate);
     }
 
     const logs = await TimeEntry.find(query)
       .populate("caregiver", "firstName lastName email role")
-      .sort({ clockIn: -1 });
+      .sort({ punchIn: -1 });
 
-    res.json({ count: logs.length, logs });
+    const entryIds = logs.map((l) => l._id);
+    const corrections = await TimeEntryCorrection.find({
+      timeEntry: { $in: entryIds },
+    })
+      .select("timeEntry effectivePunchIn effectivePunchOut")
+      .lean();
+
+    const correctionByEntryId = new Map(
+      corrections.map((c) => [String(c.timeEntry), c])
+    );
+
+    const logsWithEffective = logs.map((log) => {
+      const obj = log.toObject({ virtuals: true });
+      const correction = correctionByEntryId.get(String(log._id));
+      return {
+        ...obj,
+        effectivePunchIn: correction?.effectivePunchIn || obj.punchIn,
+        effectivePunchOut:
+          correction?.effectivePunchOut !== undefined
+            ? correction.effectivePunchOut
+            : obj.punchOut,
+      };
+    });
+
+    res.json({ count: logsWithEffective.length, logs: logsWithEffective });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });

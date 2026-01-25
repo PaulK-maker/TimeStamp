@@ -255,3 +255,55 @@ a {
   color: var(--muted);
   font-size: 14px;
 }
+
+.noPrint {
+  /* Hidden during printing via @media print */
+}
+
+.printArea {
+  /* Mark the printable content region */
+}
+
+.printPageBreak {
+  /* Only forces a break in print mode */
+}
+
+@media print {
+  :root {
+    --bg: #ffffff;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .topNav,
+  .footer,
+  .noPrint {
+    display: none !important;
+  }
+
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+
+  .card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .printArea {
+    display: block !important;
+  }
+
+  .printPageBreak {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  table {
+    page-break-inside: avoid;
+  }
+}

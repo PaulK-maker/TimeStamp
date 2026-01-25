@@ -264,6 +264,10 @@ const AdminDashboard = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const [missedPunchRequests, setMissedPunchRequests] = useState([]);
+  const [mpLoading, setMpLoading] = useState(false);
+  const [mpError, setMpError] = useState("");
+
   const navigate = useNavigate();
 
   /* =======================
@@ -336,12 +340,71 @@ const AdminDashboard = () => {
     }
   }, [calculateTotals, logout]);
 
+  const fetchMissedPunchRequests = useCallback(async () => {
+    setMpLoading(true);
+    setMpError("");
+    try {
+      const res = await api.get("/admin/missed-punch-requests", {
+        params: { status: "pending" },
+      });
+      setMissedPunchRequests(Array.isArray(res.data.requests) ? res.data.requests : []);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        logout();
+        return;
+      }
+      setMpError(err.response?.data?.message || "Failed to load missed punch requests.");
+    } finally {
+      setMpLoading(false);
+    }
+  }, [logout]);
+
+  const approveMissedPunchRequest = useCallback(
+    async (requestId) => {
+      if (!requestId) return;
+      setMpLoading(true);
+      setMpError("");
+      try {
+        await api.post(`/admin/missed-punch-requests/${requestId}/approve`, {
+          adminNote: "",
+        });
+        await fetchMissedPunchRequests();
+        await fetchTimeLogs();
+      } catch (err) {
+        setMpError(err.response?.data?.message || "Failed to approve request.");
+      } finally {
+        setMpLoading(false);
+      }
+    },
+    [fetchMissedPunchRequests, fetchTimeLogs]
+  );
+
+  const rejectMissedPunchRequest = useCallback(
+    async (requestId) => {
+      if (!requestId) return;
+      setMpLoading(true);
+      setMpError("");
+      try {
+        await api.post(`/admin/missed-punch-requests/${requestId}/reject`, {
+          adminNote: "",
+        });
+        await fetchMissedPunchRequests();
+      } catch (err) {
+        setMpError(err.response?.data?.message || "Failed to reject request.");
+      } finally {
+        setMpLoading(false);
+      }
+    },
+    [fetchMissedPunchRequests]
+  );
+
   /* =======================
      Init on page load
   ======================= */
   useEffect(() => {
     fetchTimeLogs();
-  }, [fetchTimeLogs]);
+    fetchMissedPunchRequests();
+  }, [fetchTimeLogs, fetchMissedPunchRequests]);
 
   /* =======================
      Helpers
@@ -392,6 +455,20 @@ const AdminDashboard = () => {
               }}
             >
               🔄 Refresh
+            </button>
+
+            <button
+              onClick={() => navigate("/admin/reports/print")}
+              style={{
+                padding: "8px 16px",
+                marginRight: "10px",
+                backgroundColor: "#111827",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+              }}
+            >
+              🖨️ Print Report
             </button>
 
             <button
@@ -492,6 +569,118 @@ const AdminDashboard = () => {
 
         {/* User Management */}
         <UserManagementTable />
+
+        {/* Missed Punch Requests */}
+        <div
+          style={{
+            background: "#fff",
+            padding: "20px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>🕒 Missed Punch Requests</h2>
+            <button
+              onClick={fetchMissedPunchRequests}
+              disabled={mpLoading}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+
+          {mpError && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "12px",
+                backgroundColor: "#f8d7da",
+                color: "#721c24",
+                borderRadius: "4px",
+              }}
+            >
+              {mpError}
+            </div>
+          )}
+
+          {mpLoading ? (
+            <p>Loading requests...</p>
+          ) : missedPunchRequests.length === 0 ? (
+            <p style={{ color: "#6b7280" }}>No pending requests.</p>
+          ) : (
+            <table width="100%" cellPadding="8" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th align="left">Caregiver</th>
+                  <th align="left">Email</th>
+                  <th align="left">Shift Punch In</th>
+                  <th align="left">Requested Punch Out</th>
+                  <th align="left">Reason</th>
+                  <th align="right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missedPunchRequests.map((r) => (
+                  <tr key={r._id}>
+                    <td>
+                      {r.caregiver?.firstName} {r.caregiver?.lastName}
+                    </td>
+                    <td>{r.caregiver?.email}</td>
+                    <td>
+                      {r.timeEntry?.punchIn
+                        ? new Date(r.timeEntry.punchIn).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td>
+                      {r.requestedTime
+                        ? new Date(r.requestedTime).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td style={{ color: "#6b7280" }}>{r.reason || "-"}</td>
+                    <td align="right">
+                      <button
+                        onClick={() => approveMissedPunchRequest(r._id)}
+                        disabled={mpLoading}
+                        style={{
+                          padding: "6px 10px",
+                          marginRight: 8,
+                          backgroundColor: "#16a34a",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 6,
+                          cursor: mpLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => rejectMissedPunchRequest(r._id)}
+                        disabled={mpLoading}
+                        style={{
+                          padding: "6px 10px",
+                          backgroundColor: "#dc3545",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 6,
+                          cursor: mpLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
 
         {/* Totals */}
         <div

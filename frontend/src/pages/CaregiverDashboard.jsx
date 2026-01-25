@@ -14,6 +14,13 @@ const CaregiverDashboard = () => {
   const [totalHours, setTotalHours] = useState(0);
   const [currentlyClockedIn, setCurrentlyClockedIn] = useState(false);
 
+  const [missedPunchRequests, setMissedPunchRequests] = useState([]);
+  const [requestingEntryId, setRequestingEntryId] = useState(null);
+  const [requestedTimeLocal, setRequestedTimeLocal] = useState("");
+  const [requestReason, setRequestReason] = useState("");
+  const [requestStatusMsg, setRequestStatusMsg] = useState("");
+  const [requestBusy, setRequestBusy] = useState(false);
+
   const navigate = useNavigate();
   const { user, isLoaded, isSignedIn } = useUser();
 
@@ -39,10 +46,13 @@ const CaregiverDashboard = () => {
 
   const calculateTotals = useCallback((logsData) => {
     const total = logsData.reduce((sum, log) => {
-      if (log.punchIn && log.punchOut) {
+      const out = log.effectivePunchOut ?? log.punchOut;
+      const inn = log.effectivePunchIn ?? log.punchIn;
+
+      if (inn && out) {
         return (
           sum +
-          (new Date(log.punchOut) - new Date(log.punchIn)) /
+          (new Date(out) - new Date(inn)) /
             (1000 * 60 * 60)
         );
       }
@@ -55,6 +65,23 @@ const CaregiverDashboard = () => {
     setCurrentlyClockedIn(!!activeShift);
   }, []);
 
+  const toLocalDateTimeValue = (d) => {
+    const date = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(date.getTime())) return "";
+    const tzOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+    const local = new Date(date.getTime() - tzOffsetMs);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const fetchMyRequests = useCallback(async () => {
+    try {
+      const res = await api.get("/missed-punch/requests/mine");
+      setMissedPunchRequests(Array.isArray(res.data.requests) ? res.data.requests : []);
+    } catch (err) {
+      // Non-fatal; requests are an optional helper feature.
+    }
+  }, []);
+
   const fetchMyLogs = useCallback(async () => {
     try {
       setError("");
@@ -63,6 +90,7 @@ const CaregiverDashboard = () => {
       const logsData = res.data.logs || [];
       setLogs(logsData);
       calculateTotals(logsData);
+      fetchMyRequests();
     } catch (err) {
       console.error("FETCH LOGS ERROR:", err);
       if (err.response?.status === 401) {
@@ -117,6 +145,65 @@ const CaregiverDashboard = () => {
   }, [fetchMyLogs, isLoaded, isSignedIn]);
 
   const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : "-");
+
+  const latestRequestByEntryId = missedPunchRequests.reduce((acc, r) => {
+    const entryId = r?.timeEntry?._id || r?.timeEntry;
+    if (!entryId) return acc;
+    const key = String(entryId);
+    const existing = acc[key];
+    if (!existing) {
+      acc[key] = r;
+      return acc;
+    }
+    const existingCreated = new Date(existing.createdAt || 0).getTime();
+    const currentCreated = new Date(r.createdAt || 0).getTime();
+    if (currentCreated > existingCreated) acc[key] = r;
+    return acc;
+  }, {});
+
+  const openMissedPunchRequest = (entry) => {
+    setRequestStatusMsg("");
+    setRequestingEntryId(entry?._id || null);
+    setRequestedTimeLocal(toLocalDateTimeValue(new Date()));
+    setRequestReason("");
+  };
+
+  const submitMissedPunchRequest = async () => {
+    if (!requestingEntryId) return;
+    setRequestBusy(true);
+    setRequestStatusMsg("");
+    try {
+      await api.post("/missed-punch/requests", {
+        timeEntryId: requestingEntryId,
+        missingField: "punchOut",
+        requestedTime: new Date(requestedTimeLocal).toISOString(),
+        reason: requestReason,
+      });
+      setRequestStatusMsg("Request submitted.");
+      setRequestingEntryId(null);
+      await fetchMyRequests();
+      await fetchMyLogs();
+    } catch (err) {
+      setRequestStatusMsg(err.response?.data?.message || "Failed to submit request");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
+
+  const cancelMissedPunchRequest = async (requestId) => {
+    if (!requestId) return;
+    setRequestBusy(true);
+    setRequestStatusMsg("");
+    try {
+      await api.post(`/missed-punch/requests/${requestId}/cancel`, {});
+      setRequestStatusMsg("Request cancelled.");
+      await fetchMyRequests();
+    } catch (err) {
+      setRequestStatusMsg(err.response?.data?.message || "Failed to cancel request");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
 
   return (
     <div
@@ -277,13 +364,21 @@ const CaregiverDashboard = () => {
               </thead>
               <tbody>
                 {logs.map((log) => {
+                  const inn = log.effectivePunchIn ?? log.punchIn;
+                  const out = log.effectivePunchOut ?? log.punchOut;
+
                   const hours =
-                    log.punchIn && log.punchOut
+                    inn && out
                       ? (
-                          (new Date(log.punchOut) - new Date(log.punchIn)) /
+                          (new Date(out) - new Date(inn)) /
                           (1000 * 60 * 60)
                         ).toFixed(2)
                       : "-";
+
+                  const isCorrected = Boolean(log.effectivePunchOut && !log.punchOut);
+                  const isMissingPunchOut = !log.punchOut && !log.effectivePunchOut;
+                  const latestRequest = latestRequestByEntryId[String(log._id)];
+                  const hasPending = latestRequest?.status === "pending";
 
                   return (
                     <tr key={log._id} style={{ borderBottom: "1px solid #eee" }}>
@@ -295,8 +390,52 @@ const CaregiverDashboard = () => {
                       <td style={{ padding: "12px" }}>{formatDateTime(log.punchIn)}</td>
                       <td style={{ padding: "12px" }}>
                         <span style={{ color: log.punchOut ? "#28a745" : "#ffc107" }}>
-                          {formatDateTime(log.punchOut)}
+                          {formatDateTime(out)}
                         </span>
+                        {isCorrected && (
+                          <span style={{ marginLeft: 8, color: "#6b7280", fontSize: 12 }}>
+                            (corrected)
+                          </span>
+                        )}
+
+                        {isMissingPunchOut && (
+                          <div style={{ marginTop: 8 }}>
+                            {hasPending ? (
+                              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                <span style={{ color: "#6b7280", fontSize: 12 }}>
+                                  Missed punch request pending
+                                </span>
+                                <button
+                                  onClick={() => cancelMissedPunchRequest(latestRequest?._id)}
+                                  disabled={requestBusy}
+                                  style={{
+                                    padding: "6px 10px",
+                                    borderRadius: 6,
+                                    border: "1px solid #e5e7eb",
+                                    background: "white",
+                                    cursor: requestBusy ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => openMissedPunchRequest(log)}
+                                disabled={requestBusy}
+                                style={{
+                                  padding: "6px 10px",
+                                  borderRadius: 6,
+                                  border: "1px solid #e5e7eb",
+                                  background: "white",
+                                  cursor: requestBusy ? "not-allowed" : "pointer",
+                                }}
+                              >
+                                Request missed punch-out
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold" }}>
                         {hours}
@@ -308,6 +447,80 @@ const CaregiverDashboard = () => {
             </table>
           )}
         </div>
+
+        {requestingEntryId && (
+          <div
+            style={{
+              marginTop: 16,
+              background: "white",
+              padding: 16,
+              borderRadius: 10,
+              border: "1px solid #eee",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Request missed punch-out</h3>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <label>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Requested punch-out time</div>
+                <input
+                  type="datetime-local"
+                  value={requestedTimeLocal}
+                  onChange={(e) => setRequestedTimeLocal(e.target.value)}
+                  style={{ padding: 8, borderRadius: 6, border: "1px solid #e5e7eb" }}
+                />
+              </label>
+              <label style={{ flex: "1 1 320px" }}>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Reason (optional)</div>
+                <input
+                  type="text"
+                  value={requestReason}
+                  onChange={(e) => setRequestReason(e.target.value)}
+                  placeholder="Forgot to punch out, device issue, etc."
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
+              </label>
+            </div>
+
+            {requestStatusMsg && (
+              <div style={{ marginTop: 10, color: "#6b7280" }}>{requestStatusMsg}</div>
+            )}
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+              <button
+                onClick={submitMissedPunchRequest}
+                disabled={requestBusy || !requestedTimeLocal}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: requestBusy ? "#cbd5e1" : "#2563eb",
+                  color: "white",
+                  cursor: requestBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Submit request
+              </button>
+              <button
+                onClick={() => setRequestingEntryId(null)}
+                disabled={requestBusy}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "white",
+                  cursor: requestBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

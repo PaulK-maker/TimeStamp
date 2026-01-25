@@ -44,6 +44,7 @@ import AboutUs from "./pages/AboutUs";
 import ContactPage from "./pages/ContactPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import CalendarPage from "./pages/CalendarPage";
+import AdminPrintReportPage from "./pages/AdminPrintReportPage";
 
 function App() {
   return (
@@ -108,6 +109,16 @@ function App() {
           element={
             <RequireAdmin>
               <AdminDashboard />
+            </RequireAdmin>
+          }
+        />
+
+        {/* Admin printable reports */}
+        <Route
+          path="/admin/reports/print"
+          element={
+            <RequireAdmin>
+              <AdminPrintReportPage />
             </RequireAdmin>
           }
         />
