@@ -10,6 +10,7 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const caregiverRoutes = require("./routes/caregiverRoutes");
 const timeClockRoutes = require("./routes/timeClockRoutes");
+const missedPunchRoutes = require("./routes/missedPunchRoutes");
 
 const app = express();
 
@@ -212,6 +213,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/timeclock", timeClockRoutes);
+app.use("/api/missed-punch", missedPunchRoutes);
 
 // 7. 404 handler (LAST - catches everything else)
 app.use((req, res) => {

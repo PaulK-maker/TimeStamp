@@ -10,6 +10,12 @@ const {
   deleteUser,
 } = require("../controllers/adminControllers");
 
+const {
+  adminListMissedPunchRequests,
+  adminApproveMissedPunchRequest,
+  adminRejectMissedPunchRequest,
+} = require("../controllers/missedPunchController");
+
 router.get(
   "/dashboard",
   auth,
@@ -48,6 +54,28 @@ router.delete(
   auth,
   authorizeRoles("admin"),
   deleteUser
+);
+
+// Missed punch request review
+router.get(
+  "/missed-punch-requests",
+  auth,
+  authorizeRoles("admin"),
+  adminListMissedPunchRequests
+);
+
+router.post(
+  "/missed-punch-requests/:id/approve",
+  auth,
+  authorizeRoles("admin"),
+  adminApproveMissedPunchRequest
+);
+
+router.post(
+  "/missed-punch-requests/:id/reject",
+  auth,
+  authorizeRoles("admin"),
+  adminRejectMissedPunchRequest
 );
 
 module.exports = router;
