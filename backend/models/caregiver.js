@@ -37,12 +37,21 @@ const caregiverSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["caregiver", "admin"],
+      enum: ["caregiver", "admin", "superadmin"],
       default: "caregiver",
     },
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    // Facility/tenant that owns this caregiver record.
+    // Kept optional initially to allow a one-time backfill script to populate it.
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+      index: true,
     },
   },
   { timestamps: true }

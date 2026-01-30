@@ -45,6 +45,7 @@ const express = require("express");
 const router = express.Router();
 const { register, login } = require("../controllers/authController");
 const Caregiver = require("../models/caregiver");
+const Tenant = require("../models/Tenant");
 const requireAuth = require("../middleware/authMiddleware");
 
 const DEV_BOOTSTRAP_ENABLED =
@@ -55,10 +56,35 @@ router.post("/register", register);
 router.post("/login", login);
 
 // Verify authentication (Clerk preferred, JWT fallback)
-router.get("/me", requireAuth, (req, res) => {
-  res.json({
-    user: req.user,
-  });
+router.get("/me", requireAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const baseUser = req.user;
+    let tenantCode = null;
+    let tenantName = null;
+
+    if (baseUser.tenantId) {
+      const tenant = await Tenant.findById(baseUser.tenantId)
+        .select("tenantCode name")
+        .lean();
+      tenantCode = tenant?.tenantCode || null;
+      tenantName = tenant?.name || null;
+    }
+
+    return res.json({
+      user: {
+        ...baseUser,
+        tenantCode,
+        tenantName,
+      },
+    });
+  } catch (err) {
+    console.error("/auth/me failed:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
 
 // TEMP: create one admin user (no next)

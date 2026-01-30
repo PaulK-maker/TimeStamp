@@ -11,6 +11,10 @@ const adminRoutes = require("./routes/adminRoutes");
 const caregiverRoutes = require("./routes/caregiverRoutes");
 const timeClockRoutes = require("./routes/timeClockRoutes");
 const missedPunchRoutes = require("./routes/missedPunchRoutes");
+const billingRoutes = require("./routes/billingRoutes");
+const tenantRoutes = require("./routes/tenantRoutes");
+const tenantOtpRoutes = require("./routes/tenantOtpRoutes");
+const superadminRoutes = require("./routes/superadminRoutes");
 
 const app = express();
 
@@ -44,7 +48,7 @@ app.use(cors({
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "x-superadmin-key"]
 }));
 
 // 3. Body parsers for JSON and URL-encoded requests
@@ -211,9 +215,13 @@ if (ENABLE_MOCK_API) {
 // 6. Additional API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/tenant", tenantRoutes);
+app.use("/api/tenant/otp", tenantOtpRoutes);
 app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 app.use("/api/missed-punch", missedPunchRoutes);
+app.use("/api/superadmin", superadminRoutes);
 
 // 7. 404 handler (LAST - catches everything else)
 app.use((req, res) => {

@@ -256,6 +256,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import UserManagementTable from "../components/UserManagementTable";
 import api from "../services/api";
+import { getMe } from "../services/me";
 
 const AdminDashboard = () => {
   const [logs, setLogs] = useState([]);
@@ -264,11 +265,25 @@ const AdminDashboard = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const [tenantCode, setTenantCode] = useState(null);
+  const [tenantName, setTenantName] = useState(null);
+
   const [missedPunchRequests, setMissedPunchRequests] = useState([]);
   const [mpLoading, setMpLoading] = useState(false);
   const [mpError, setMpError] = useState("");
 
   const navigate = useNavigate();
+
+  const formatTenantCode = useCallback((code) => {
+    const normalized = (code || "")
+      .toString()
+      .trim()
+      .toUpperCase()
+      .replace(/[^0-9A-Z]/g, "");
+    if (!normalized) return "";
+    if (normalized.length <= 4) return normalized;
+    return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+  }, []);
 
   /* =======================
      Logout (Clerk-aware)
@@ -309,6 +324,7 @@ const AdminDashboard = () => {
      Fetch admin time logs
   ======================= */
   const fetchTimeLogs = useCallback(async () => {
+    setRefreshing(true);
     setLoading(true);
     setErrorMsg("");
 
@@ -328,7 +344,17 @@ const AdminDashboard = () => {
         setErrorMsg("Session expired. Please log in again.");
         logout();
       } else if (err.response?.status === 403) {
-        setErrorMsg("Access denied. Admin privileges required.");
+        const code = err.response?.data?.code;
+        const feature = err.response?.data?.feature;
+        if (code === "PLAN_REQUIRED") {
+          setErrorMsg("Select a plan on Billing to use this feature.");
+        } else if (code === "FEATURE_NOT_AVAILABLE") {
+          setErrorMsg(
+            `Your plan doesn’t include this feature${feature ? ` (${feature})` : ""}. Upgrade on Billing to unlock it.`
+          );
+        } else {
+          setErrorMsg(err.response?.data?.message || "Access denied.");
+        }
       } else {
         setErrorMsg(
           err.response?.data?.message ||
@@ -337,6 +363,7 @@ const AdminDashboard = () => {
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [calculateTotals, logout]);
 
@@ -369,14 +396,13 @@ const AdminDashboard = () => {
           adminNote: "",
         });
         await fetchMissedPunchRequests();
-        await fetchTimeLogs();
       } catch (err) {
         setMpError(err.response?.data?.message || "Failed to approve request.");
       } finally {
         setMpLoading(false);
       }
     },
-    [fetchMissedPunchRequests, fetchTimeLogs]
+    [fetchMissedPunchRequests]
   );
 
   const rejectMissedPunchRequest = useCallback(
@@ -405,6 +431,27 @@ const AdminDashboard = () => {
     fetchTimeLogs();
     fetchMissedPunchRequests();
   }, [fetchTimeLogs, fetchMissedPunchRequests]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const me = await getMe({ forceRefresh: true });
+        if (cancelled) return;
+        setTenantCode(me?.tenantCode || null);
+        setTenantName(me?.tenantName || null);
+      } catch {
+        if (cancelled) return;
+        setTenantCode(null);
+        setTenantName(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* =======================
      Helpers
@@ -439,7 +486,18 @@ const AdminDashboard = () => {
             marginBottom: "20px",
           }}
         >
-          <h1>Admin Dashboard</h1>
+          <div>
+            <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
+            {tenantCode ? (
+              <div style={{ marginTop: 6, color: "#555" }}>
+                Facility code (support/reference): {" "}
+                <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                  {formatTenantCode(tenantCode)}
+                </span>
+                {tenantName ? <span> • {tenantName}</span> : null}
+              </div>
+            ) : null}
+          </div>
 
           <div>
             <button

@@ -1,6 +1,6 @@
 # Project Implementation Plan: TimeStamp Evolution
 
-This document outlines the roadmap for transitioning to Clerk authentication and implementing the Geofenced Time Tracking system.
+This document outlines the roadmap for transitioning to Clerk authentication, implementing per-tenant pricing/feature gating, and (later) implementing the Geofenced Time Tracking system.
 
 ## 1. Authentication Migration: Clerk Integration
 Replace the custom `LoginPage.jsx` and backend JWT logic with Clerk for improved security and user management.
@@ -181,7 +181,133 @@ The app supports multiple admins. The role source of truth is **Clerk Public Met
     - Implement `@clerk/clerk-sdk-node` to validate session tokens in `authMiddleware.js`.
     - Sync Clerk user data with the local MongoDB `Caregiver` model via Webhooks.
 
-## 2. Feature: Location-Validated Geofenced Time Tracking
+### Superadmin access key (extra privacy gate)
+The app supports a distinct `superadmin` role with a read-only UI at `/superadmin`.
+
+In addition to Clerk authentication + role checks, superadmin API routes are protected by a required access key header. This is a simple “shared secret” layer so `/api/superadmin/*` stays private even if someone signs in with a superadmin account on an untrusted machine.
+
+#### How it works
+- Backend requires the request header: `x-superadmin-key`
+- Expected value comes from: `SUPERADMIN_ACCESS_KEY` in `backend/.env`
+- If the key is missing or invalid, the backend returns `401` with:
+    - `code: "SUPERADMIN_KEY_REQUIRED"`
+
+#### Post-sign-in UX (recommended)
+- Superadmins can sign in normally.
+- On `/superadmin`, the UI prompts for the access key.
+- Once entered, the key is stored in browser local storage and automatically attached to superadmin API calls only.
+
+#### Setup steps (local/dev)
+1. Set the key in `backend/.env`:
+     - `SUPERADMIN_ACCESS_KEY=your-long-random-string`
+2. Restart the backend server.
+3. Sign in as a user whose MongoDB role is `superadmin`.
+4. Visit `/superadmin`, enter the key, click **Save key**, then **Refresh**.
+
+Notes:
+- This is not a substitute for production-grade security controls (e.g., IP allowlists / VPN / device trust), but it’s a practical extra gate.
+- If you need to revoke access on a shared machine, use **Clear** on the `/superadmin` page (or clear site data) to remove the saved key.
+
+## 2. Multi-Tenant Pricing & Plan Enforcement (Per Facility)
+
+Goal: plans are **per tenant (facility)**, and the backend enforces both **seat limits** and **feature access**.
+
+For the step-by-step operational setup (create/choose a tenant, generate a facility code, assign users, and select a plan), see: `project-guide/tenantcreate.md`.
+
+### Plan catalog (initial / Stripe later)
+Define plans centrally (backend config), with two key dimensions:
+
+- **Seat limit**: maximum caregivers allowed for the tenant.
+- **Features**:
+    - `dataManagement` (admin management: view logs, manage caregivers, approve missed punches, promote/demote, etc.)
+    - `printing` (facility export/print endpoints)
+
+Current plan rules:
+
+- Free: up to **1 caregiver**, no `dataManagement`, no `printing`
+- Standard: **$10/mo**, up to **10 caregivers**, `dataManagement` yes, `printing` no
+- Pro: **$15/mo**, up to **25 caregivers**, `dataManagement` yes, `printing` yes
+
+### Tenant identity & binding
+Design choice: “easy, safe, secure” means **no tenant switching**.
+
+- Each local `Caregiver` record belongs to exactly one `tenantId`.
+- Every authenticated request attaches `req.user.tenantId` from the linked caregiver record.
+- Admin actions are always scoped to `req.user.tenantId`.
+
+### Facility code (`tenantCode`) (human-friendly)
+To make tenant selection safe and non-confusing in production (without using phone/email/PII), each tenant has a stable, human-friendly code:
+
+- Stored on the `Tenant` model as `tenantCode` (uppercase, no dashes).
+- Display in the UI as `XXXX-XXXX` for readability.
+- Used by ops/scripts to target a tenant explicitly (preferred alternative to `TENANT_NAME`).
+
+The frontend can read this via `GET /api/auth/me` (returns `tenantCode` and `tenantName` in the `user` payload) and also via `GET /api/billing/me` (returns `tenant.tenantCode`).
+
+### Tenant scoping (what to enforce)
+Two layers:
+
+1) **Soft scoping** (ownership checks)
+     - Before acting on a target user/record, verify it belongs to the same tenant.
+
+2) **Hard scoping** (data carries `tenantId`)
+     - Persist `tenantId` on core records (TimeEntry, missed punch request, corrections).
+     - Filter queries by `tenantId` directly (faster + harder to regress).
+
+### Feature gating (server-side)
+Enforcement must happen on the backend (frontend is only UX).
+
+- Block admin features until the tenant has `planSelected=true`.
+- Apply feature checks by endpoint:
+    - `dataManagement` gates “admin management” features (view logs, manage caregivers, review missed punches, promote/demote/delete)
+    - `printing` gates export/printing endpoints
+
+### “View logs” vs “print/export” split
+To keep access clean:
+
+- Viewing logs stays on a “view” endpoint gated by `viewLogs`.
+- Export/print moves to a separate endpoint gated by `printing`.
+
+### Seat limits (caregiver creation)
+Enforce seat caps at create-time:
+
+- When an admin creates a new caregiver, count caregivers in the tenant and block if at limit.
+- Keep the behavior deterministic and tenant-scoped.
+
+### Security hardening (admin-only timeclock reads)
+Close the ID-based data leakage risk:
+
+- Make `GET /api/timeclock/:caregiverId` and `GET /api/timeclock/:caregiverId/total-hours` admin-only.
+- Always tenant-scope the underlying queries.
+
+### One-time migration / backfill (production-safe)
+Existing databases need tenant fields populated.
+
+- Run the backfill script to assign `tenantId`:
+    - In production, run with an explicit tenant target (required):
+        - `TENANT_ID="<tenantObjectId>" node backend/backfillTenantId.js`
+        - OR `TENANT_CODE="<tenantCode>" node backend/backfillTenantId.js`
+- Script is idempotent (safe to re-run).
+
+#### One-time populate: generate missing `tenantCode` values
+Existing tenants may not have a code yet. Run the code backfill:
+
+- Default is safe: `DRY_RUN=true` (no DB writes)
+- One tenant (recommended):
+    - `TENANT_ID="<tenantObjectId>" DRY_RUN=false node backend/backfillTenantCode.js`
+- All tenants (production requires confirmation):
+    - `ALLOW_ALL_TENANTS=true CONFIRM=YES DRY_RUN=false node backend/backfillTenantCode.js`
+
+### Stripe integration (future)
+Once Stripe is introduced:
+
+- `Tenant` stores Stripe customer/subscription identifiers.
+- Webhooks become the source of truth for subscription state.
+- Plan enforcement remains backend-driven via plan/feature mapping.
+
+---
+
+## 3. Feature: Location-Validated Geofenced Time Tracking
 Ensure caregivers are physically present at the facility when clocking in or out.
 
 ### Phase A: Data Capture & Storage
@@ -211,7 +337,7 @@ Ensure caregivers are physically present at the facility when clocking in or out
 
 ---
 
-## 3. Additional Recommendations
+## 4. Additional Recommendations
 
 ### For Caregivers
 - **Shift Reminders**: Push notifications or SMS alerts 15 minutes before a scheduled shift starts.

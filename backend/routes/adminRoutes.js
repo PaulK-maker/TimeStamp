@@ -3,6 +3,7 @@ const router = express.Router();
 
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
+const { requireFeature } = require("../middleware/tenantPlanMiddleware");
 const {
   getAllTimeLogs,
   promoteCaregiverToAdmin,
@@ -29,6 +30,16 @@ router.get(
   "/timelogs",
   auth,
   authorizeRoles("admin"),
+  requireFeature("viewLogs"),
+  getAllTimeLogs
+);
+
+// Print/export endpoint (separate from view-only) so printing can be plan-gated.
+router.get(
+  "/timelogs-export",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("printing"),
   getAllTimeLogs
 );
 
@@ -37,6 +48,7 @@ router.post(
   "/promote",
   auth,
   authorizeRoles("admin"),
+  requireFeature("dataManagement"),
   promoteCaregiverToAdmin
 );
 
@@ -45,6 +57,7 @@ router.post(
   "/demote",
   auth,
   authorizeRoles("admin"),
+  requireFeature("dataManagement"),
   demoteAdminToCaregiver
 );
 
@@ -53,6 +66,7 @@ router.delete(
   "/users/:caregiverId",
   auth,
   authorizeRoles("admin"),
+  requireFeature("dataManagement"),
   deleteUser
 );
 
@@ -61,6 +75,7 @@ router.get(
   "/missed-punch-requests",
   auth,
   authorizeRoles("admin"),
+  requireFeature("missedPunchReview"),
   adminListMissedPunchRequests
 );
 
@@ -68,6 +83,7 @@ router.post(
   "/missed-punch-requests/:id/approve",
   auth,
   authorizeRoles("admin"),
+  requireFeature("missedPunchReview"),
   adminApproveMissedPunchRequest
 );
 
@@ -75,6 +91,7 @@ router.post(
   "/missed-punch-requests/:id/reject",
   auth,
   authorizeRoles("admin"),
+  requireFeature("missedPunchReview"),
   adminRejectMissedPunchRequest
 );
 

@@ -30,6 +30,14 @@ exports.createMissedPunchRequest = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const timeEntryId = (req.body?.timeEntryId || "").trim();
     const missingField = (req.body?.missingField || "").trim();
     const requestedTime = parseDate(req.body?.requestedTime);
@@ -62,6 +70,7 @@ exports.createMissedPunchRequest = async (req, res) => {
 
     const entry = await TimeEntry.findOne({
       _id: timeEntryId,
+      tenantId,
       caregiver: caregiverId,
     });
 
@@ -89,6 +98,7 @@ exports.createMissedPunchRequest = async (req, res) => {
     }
 
     const existingPending = await MissedPunchRequest.findOne({
+      tenantId,
       caregiver: caregiverId,
       timeEntry: entry._id,
       missingField,
@@ -103,6 +113,7 @@ exports.createMissedPunchRequest = async (req, res) => {
     }
 
     const request = await MissedPunchRequest.create({
+      tenantId,
       caregiver: caregiverId,
       timeEntry: entry._id,
       missingField,
@@ -126,7 +137,18 @@ exports.getMyMissedPunchRequests = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const requests = await MissedPunchRequest.find({ caregiver: caregiverId })
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const requests = await MissedPunchRequest.find({
+      tenantId,
+      caregiver: caregiverId,
+    })
       .populate({
         path: "timeEntry",
         select: "punchIn punchOut",
@@ -148,6 +170,14 @@ exports.cancelMyMissedPunchRequest = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const requestId = (req.params?.id || "").trim();
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       return res.status(400).json({ message: "Invalid request id" });
@@ -155,6 +185,7 @@ exports.cancelMyMissedPunchRequest = async (req, res) => {
 
     const request = await MissedPunchRequest.findOne({
       _id: requestId,
+      tenantId,
       caregiver: caregiverId,
     });
 
@@ -181,6 +212,14 @@ exports.cancelMyMissedPunchRequest = async (req, res) => {
 // GET /api/admin/missed-punch-requests
 exports.adminListMissedPunchRequests = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const status = (req.query?.status || "pending").toString().trim();
     const allowed = new Set(["pending", "approved", "rejected", "cancelled", "all"]);
 
@@ -188,6 +227,8 @@ exports.adminListMissedPunchRequests = async (req, res) => {
     if (allowed.has(status) && status !== "all") {
       query.status = status;
     }
+
+    query.tenantId = adminTenantId;
 
     const requests = await MissedPunchRequest.find(query)
       .populate({
@@ -210,12 +251,23 @@ exports.adminListMissedPunchRequests = async (req, res) => {
 // POST /api/admin/missed-punch-requests/:id/approve
 exports.adminApproveMissedPunchRequest = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const requestId = (req.params?.id || "").trim();
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       return res.status(400).json({ message: "Invalid request id" });
     }
 
-    const request = await MissedPunchRequest.findById(requestId);
+    const request = await MissedPunchRequest.findOne({
+      _id: requestId,
+      tenantId: adminTenantId,
+    });
     if (!request) {
       return res.status(404).json({ message: "Request not found" });
     }
@@ -253,9 +305,10 @@ exports.adminApproveMissedPunchRequest = async (req, res) => {
         : null;
 
     const correction = await TimeEntryCorrection.findOneAndUpdate(
-      { timeEntry: entry._id },
+      { timeEntry: entry._id, tenantId: adminTenantId },
       {
         $set: {
+          tenantId: adminTenantId,
           caregiver: entry.caregiver,
           effectivePunchOut: request.requestedTime,
           sourceRequest: request._id,
@@ -281,12 +334,23 @@ exports.adminApproveMissedPunchRequest = async (req, res) => {
 // POST /api/admin/missed-punch-requests/:id/reject
 exports.adminRejectMissedPunchRequest = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const requestId = (req.params?.id || "").trim();
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       return res.status(400).json({ message: "Invalid request id" });
     }
 
-    const request = await MissedPunchRequest.findById(requestId);
+    const request = await MissedPunchRequest.findOne({
+      _id: requestId,
+      tenantId: adminTenantId,
+    });
     if (!request) {
       return res.status(404).json({ message: "Request not found" });
     }

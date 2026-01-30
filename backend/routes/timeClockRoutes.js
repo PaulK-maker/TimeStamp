@@ -26,6 +26,7 @@
 const express = require("express");
 const router = express.Router();
 const protect = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 const {
   punchIn,
   punchOut,
@@ -41,7 +42,12 @@ router.get("/my-logs", protect, getMyTimeEntries);
 router.get("/mylogs", protect, getMyTimeEntries);
 
 // existing admin endpoints (optional)
-router.get("/:caregiverId", protect, getTimeEntries);
-router.get("/:caregiverId/total-hours", protect, getTotalHours);
+router.get("/:caregiverId", protect, authorizeRoles("admin"), getTimeEntries);
+router.get(
+  "/:caregiverId/total-hours",
+  protect,
+  authorizeRoles("admin"),
+  getTotalHours
+);
 
 module.exports = router;

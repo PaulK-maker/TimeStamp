@@ -12,7 +12,7 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
-const ALLOWED_ROLES = new Set(["admin", "caregiver"]);
+const ALLOWED_ROLES = new Set(["admin", "caregiver", "superadmin"]);
 
 function isAdminEmail(email) {
   if (!DEV_BOOTSTRAP_ENABLED) return false;
@@ -51,6 +51,8 @@ function getRoleFromClerkUser(clerkUser) {
     const normalized = roles
       .filter((r) => typeof r === "string")
       .map((r) => r.trim().toLowerCase());
+    // Priority: superadmin > admin > caregiver
+    if (normalized.includes("superadmin")) return "superadmin";
     if (normalized.includes("admin")) return "admin";
     if (normalized.includes("caregiver")) return "caregiver";
   }
@@ -77,6 +79,7 @@ module.exports = (req, res, next) => {
             clerkUserId: auth.userId,
             sessionId: auth.sessionId,
             email: caregiver.email,
+            tenantId: caregiver.tenantId ? caregiver.tenantId.toString() : null,
           };
         };
 
@@ -276,8 +279,21 @@ module.exports = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.id, role: decoded.role };
-    return next();
+    // For legacy JWT sessions, load caregiver to attach tenantId and keep behavior consistent.
+    return Caregiver.findById(decoded.id)
+      .then((caregiver) => {
+        req.user = {
+          id: decoded.id,
+          role: decoded.role,
+          email: caregiver?.email || null,
+          tenantId: caregiver?.tenantId ? caregiver.tenantId.toString() : null,
+        };
+        return next();
+      })
+      .catch(() => {
+        req.user = { id: decoded.id, role: decoded.role, email: null, tenantId: null };
+        return next();
+      });
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });
   }

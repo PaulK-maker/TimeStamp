@@ -22,6 +22,16 @@ export default function PostSignIn() {
       try {
 		const me = await getMe({ cacheKey: userId, forceRefresh: true });
         const role = me?.role;
+
+		if (role === "superadmin") {
+		  setNextPath("/superadmin");
+		  return;
+		}
+
+        if (!me?.tenantId) {
+          setNextPath("/tenant-setup");
+          return;
+        }
         setNextPath(role === "admin" ? "/admin" : "/caregiver");
       } catch (err) {
     const status = err?.response?.status;

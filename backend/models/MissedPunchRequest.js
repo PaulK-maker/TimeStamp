@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const missedPunchRequestSchema = new mongoose.Schema(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+      index: true,
+    },
     caregiver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Caregiver",
@@ -55,6 +61,7 @@ const missedPunchRequestSchema = new mongoose.Schema(
 );
 
 missedPunchRequestSchema.index({ status: 1, createdAt: -1 });
+missedPunchRequestSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
 
 module.exports =
   mongoose.models.MissedPunchRequest ||

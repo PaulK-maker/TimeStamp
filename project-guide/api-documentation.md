@@ -4,7 +4,7 @@ This document outlines the primary API endpoints available in the TimeStamp back
 
 ## Base URL
 
-- Local (default): `http://localhost:5000/api`
+- Local: `http://localhost:<PORT>/api` (commonly `5001` in this repo)
 
 ## Authentication & Authorization
 
@@ -16,6 +16,43 @@ The backend supports Clerk (preferred) and a legacy JWT fallback.
 ### Auth (`/auth`)
 
 - `GET /auth/me` (Signed-in): returns the authenticated user info/role used for routing.
+	- Also includes `tenantId`, plus `tenantCode` and `tenantName` when assigned.
+
+## Tenant setup (`/tenant`)
+
+These endpoints are designed to replace “run a backfill script” for non-technical onboarding.
+
+- `POST /tenant/bootstrap` (Admin-only)
+	- Creates a new facility (Tenant) and assigns it to the current admin account **only if** they are currently unassigned.
+	- Body (optional): `{ name?: string }`
+	- Returns `{ tenant }`.
+
+### Invite codes (OTP) (`/tenant/otp`)
+
+TimeStamp uses **one-time invite codes** for joining an existing facility.
+
+- `POST /tenant/otp/send-join` (Admin-only)
+	- Sends a 6-digit invite code to an email address.
+	- Body: `{ toEmail: string }`
+	- If mail is not configured, returns a copyable code instead.
+
+- `POST /tenant/otp/redeem-join` (Signed-in)
+	- Joins the facility using a 6-digit invite code.
+	- Body: `{ code: string }`
+	- The signed-in user’s email must match the invite recipient.
+
+## Billing / Plans (`/billing`) (Admin-only)
+
+- `GET /billing/plans`
+	- Returns `{ plans }`.
+
+- `GET /billing/me`
+	- Returns `{ tenant, plan }`.
+	- If unassigned: `403 { code: "TENANT_REQUIRED" }`.
+
+- `POST /billing/select-plan`
+	- Body: `{ planId: string }`
+	- Sets the plan for the tenant and returns `{ tenant, plan }`.
 
 ## Timeclock (`/timeclock`)
 
@@ -26,6 +63,9 @@ The backend supports Clerk (preferred) and a legacy JWT fallback.
 		- `effectivePunchIn`
 		- `effectivePunchOut`
 	- Effective fields account for approved missed punch overlays without mutating stored punches.
+
+Tenant requirement:
+- If the current account has no `tenantId`, these endpoints return `403 { code: "TENANT_REQUIRED" }`.
 
 ## Admin (`/admin`) (Admin-only)
 
@@ -62,6 +102,9 @@ The backend supports Clerk (preferred) and a legacy JWT fallback.
 	- List the signed-in caregiver’s requests.
 - `POST /missed-punch/requests/:id/cancel`
 	- Cancels a pending request.
+
+Tenant requirement:
+- If the current account has no `tenantId`, these endpoints return `403 { code: "TENANT_REQUIRED" }`.
 
 ---
 
