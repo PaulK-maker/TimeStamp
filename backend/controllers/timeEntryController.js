@@ -25,10 +25,19 @@ const punchIn = async (req, res) => {
     if (!caregiverId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
     const { notes } = req.body;
 
     // Check for active shift
     const activeShift = await TimeEntry.findOne({
+      tenantId,
       caregiver: caregiverId,
       punchOut: null,
     });
@@ -40,6 +49,7 @@ const punchIn = async (req, res) => {
     }
 
     const entry = await TimeEntry.create({
+      tenantId,
       caregiver: caregiverId,
       punchIn: new Date(),
       notes,
@@ -62,7 +72,16 @@ const punchOut = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const activeShift = await TimeEntry.findOne({
+      tenantId,
       caregiver: caregiverId,
       punchOut: null,
     });
@@ -93,13 +112,22 @@ const getMyTimeEntries = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const entries = await TimeEntry.find({
-      caregiver: caregiverId,
-    }).sort({ punchIn: -1 });
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const query = { tenantId, caregiver: caregiverId };
+
+    const entries = await TimeEntry.find(query).sort({ punchIn: -1 });
 
     const entryIds = entries.map((e) => e._id);
     const corrections = await TimeEntryCorrection.find({
       timeEntry: { $in: entryIds },
+      tenantId,
     })
       .select("timeEntry effectivePunchIn effectivePunchOut")
       .lean();
@@ -133,7 +161,30 @@ const getMyTimeEntries = async (req, res) => {
 // @route  GET /api/timeclock/:caregiverId
 const getTimeEntries = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const caregiver = await Caregiver.findById(req.params.caregiverId).select(
+      "tenantId"
+    );
+    if (!caregiver) {
+      return res.status(404).json({ message: "Caregiver not found" });
+    }
+
+    if (!caregiver.tenantId || String(caregiver.tenantId) !== String(adminTenantId)) {
+      return res.status(403).json({
+        message: "Access denied: cross-tenant access blocked",
+        code: "CROSS_TENANT_BLOCKED",
+      });
+    }
+
     const entries = await TimeEntry.find({
+      tenantId: adminTenantId,
       caregiver: req.params.caregiverId,
     }).sort({ punchIn: -1 });
 
@@ -147,7 +198,30 @@ const getTimeEntries = async (req, res) => {
 // @route  GET /api/timeclock/:caregiverId/total-hours
 const getTotalHours = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const caregiver = await Caregiver.findById(req.params.caregiverId).select(
+      "tenantId"
+    );
+    if (!caregiver) {
+      return res.status(404).json({ message: "Caregiver not found" });
+    }
+
+    if (!caregiver.tenantId || String(caregiver.tenantId) !== String(adminTenantId)) {
+      return res.status(403).json({
+        message: "Access denied: cross-tenant access blocked",
+        code: "CROSS_TENANT_BLOCKED",
+      });
+    }
+
     const entries = await TimeEntry.find({
+      tenantId: adminTenantId,
       caregiver: req.params.caregiverId,
       punchOut: { $ne: null },
     });

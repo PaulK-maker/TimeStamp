@@ -10,25 +10,29 @@ function isSameId(a, b) {
   return String(a || "") === String(b || "");
 }
 
-async function resolveCaregiver({ caregiverId, email }) {
+async function resolveCaregiver({ tenantId, caregiverId, email }) {
   const normalizedEmail = normalizeEmail(email);
 
   if (caregiverId) {
-    const byId = await Caregiver.findById(caregiverId);
+    const byId = await Caregiver.findOne({ _id: caregiverId, tenantId });
     if (byId) return byId;
   }
 
   if (normalizedEmail) {
-    const byEmail = await Caregiver.findOne({ email: normalizedEmail });
+    const byEmail = await Caregiver.findOne({ email: normalizedEmail, tenantId });
     if (byEmail) return byEmail;
   }
 
   return null;
 }
 
-async function ensureNotLastAdmin(caregiver) {
+async function ensureNotLastAdmin(caregiver, tenantId) {
   if (!caregiver || caregiver.role !== "admin") return;
-  const adminCount = await Caregiver.countDocuments({ role: "admin", isActive: true });
+  const adminCount = await Caregiver.countDocuments({
+    role: "admin",
+    isActive: true,
+    tenantId,
+  });
   if (adminCount <= 1) {
     const err = new Error("Cannot remove the last active admin");
     err.statusCode = 400;
@@ -47,9 +51,29 @@ exports.getAllTimeLogs = async (req, res) => {
   try {
     const { caregiverId, startDate, endDate } = req.query;
 
-    let query = {};
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    let query = { tenantId: adminTenantId };
 
     if (caregiverId) {
+      const caregiver = await Caregiver.findOne({
+        _id: caregiverId,
+        tenantId: adminTenantId,
+      }).select("_id");
+
+      if (!caregiver) {
+        return res.status(403).json({
+          message: "Access denied: cross-tenant access blocked",
+          code: "CROSS_TENANT_BLOCKED",
+        });
+      }
+
       query.caregiver = caregiverId;
     }
 
@@ -65,6 +89,7 @@ exports.getAllTimeLogs = async (req, res) => {
 
     const entryIds = logs.map((l) => l._id);
     const corrections = await TimeEntryCorrection.find({
+      tenantId: adminTenantId,
       timeEntry: { $in: entryIds },
     })
       .select("timeEntry effectivePunchIn effectivePunchOut")
@@ -101,6 +126,14 @@ exports.getAllTimeLogs = async (req, res) => {
  */
 exports.promoteCaregiverToAdmin = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const caregiverId = (req.body?.caregiverId || "").trim();
     const email = normalizeEmail(req.body?.email);
 
@@ -108,7 +141,11 @@ exports.promoteCaregiverToAdmin = async (req, res) => {
       return res.status(400).json({ message: "caregiverId or email is required" });
     }
 
-    const caregiver = await resolveCaregiver({ caregiverId, email });
+    const caregiver = await resolveCaregiver({
+      tenantId: adminTenantId,
+      caregiverId,
+      email,
+    });
     if (!caregiver) {
       return res.status(404).json({ message: "Caregiver not found" });
     }
@@ -161,6 +198,14 @@ exports.promoteCaregiverToAdmin = async (req, res) => {
  */
 exports.demoteAdminToCaregiver = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const caregiverId = (req.body?.caregiverId || "").trim();
     const email = normalizeEmail(req.body?.email);
 
@@ -168,7 +213,11 @@ exports.demoteAdminToCaregiver = async (req, res) => {
       return res.status(400).json({ message: "caregiverId or email is required" });
     }
 
-    const caregiver = await resolveCaregiver({ caregiverId, email });
+    const caregiver = await resolveCaregiver({
+      tenantId: adminTenantId,
+      caregiverId,
+      email,
+    });
     if (!caregiver) {
       return res.status(404).json({ message: "Caregiver not found" });
     }
@@ -186,7 +235,7 @@ exports.demoteAdminToCaregiver = async (req, res) => {
       return res.status(400).json({ message: "User is not an admin" });
     }
 
-    await ensureNotLastAdmin(caregiver);
+    await ensureNotLastAdmin(caregiver, adminTenantId);
 
     if (process.env.CLERK_SECRET_KEY && caregiver.clerkUserId) {
       try {
@@ -232,12 +281,23 @@ exports.demoteAdminToCaregiver = async (req, res) => {
  */
 exports.deleteUser = async (req, res) => {
   try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
     const caregiverId = (req.params?.caregiverId || "").trim();
     if (!caregiverId) {
       return res.status(400).json({ message: "caregiverId is required" });
     }
 
-    const caregiver = await Caregiver.findById(caregiverId);
+    const caregiver = await Caregiver.findOne({
+      _id: caregiverId,
+      tenantId: adminTenantId,
+    });
     if (!caregiver) {
       return res.status(404).json({ message: "Caregiver not found" });
     }
@@ -249,7 +309,7 @@ exports.deleteUser = async (req, res) => {
 
     // If deleting an active admin, ensure at least one active admin remains.
     if (caregiver.isActive) {
-      await ensureNotLastAdmin(caregiver);
+      await ensureNotLastAdmin(caregiver, adminTenantId);
     }
 
     // 1) Delete from Clerk (source of login)

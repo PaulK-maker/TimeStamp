@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const timeEntryCorrectionSchema = new mongoose.Schema(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+      index: true,
+    },
     timeEntry: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "TimeEntry",

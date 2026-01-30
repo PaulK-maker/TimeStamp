@@ -61,6 +61,21 @@ api.interceptors.request.use(async (config) => {
   } else {
     delete config.headers.Authorization;
   }
+
+  // Superadmin extra gate: only attach key for superadmin API calls.
+  const url = (config.url || "").toString();
+  const isSuperadminApi = url.startsWith("/superadmin");
+  if (isSuperadminApi) {
+    const key = (localStorage.getItem("superadminAccessKey") || "").trim();
+    if (key) {
+      config.headers["x-superadmin-key"] = key;
+    } else {
+      delete config.headers["x-superadmin-key"];
+    }
+  } else {
+    delete config.headers["x-superadmin-key"];
+  }
+
   return config;
 });
 

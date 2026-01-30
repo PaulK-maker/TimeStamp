@@ -105,6 +105,7 @@ export default function AdminPrintReportPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [printingLocked, setPrintingLocked] = useState(false);
 
   const [rawLogs, setRawLogs] = useState([]);
   const [includeById, setIncludeById] = useState({});
@@ -147,6 +148,7 @@ export default function AdminPrintReportPage() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError("");
+    setPrintingLocked(false);
     try {
       const start = dateStartUtc(startDate);
       const end = dateEndUtc(endDate);
@@ -158,7 +160,7 @@ export default function AdminPrintReportPage() {
       if (start) params.startDate = start.toISOString();
       if (end) params.endDate = end.toISOString();
 
-      const res = await api.get("/admin/timelogs", { params });
+      const res = await api.get("/admin/timelogs-export", { params });
       const logs = Array.isArray(res.data.logs) ? res.data.logs : [];
       setRawLogs(logs);
 
@@ -171,7 +173,18 @@ export default function AdminPrintReportPage() {
       }
       setIncludeById(nextInclude);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load time logs");
+      const status = err.response?.status;
+      const code = err.response?.data?.code;
+      const feature = err.response?.data?.feature;
+
+      if (status === 403 && code === "FEATURE_NOT_AVAILABLE" && feature === "printing") {
+        setPrintingLocked(true);
+        setError("Printing is not included in your plan. Upgrade on Billing to enable printing.");
+      } else if (status === 403 && code === "PLAN_REQUIRED") {
+        setError("Select a plan on Billing to enable printing.");
+      } else {
+        setError(err.response?.data?.message || "Failed to load time logs");
+      }
     } finally {
       setLoading(false);
     }
@@ -416,7 +429,11 @@ export default function AdminPrintReportPage() {
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn" onClick={() => navigate("/admin")}>Back</button>
-          <button className="btn btnPrimary" onClick={() => window.print()}>Print</button>
+          {printingLocked ? (
+            <button className="btn btnPrimary" onClick={() => navigate("/admin/billing")}>Upgrade to Print</button>
+          ) : (
+            <button className="btn btnPrimary" onClick={() => window.print()} disabled={loading}>Print</button>
+          )}
         </div>
       </div>
 

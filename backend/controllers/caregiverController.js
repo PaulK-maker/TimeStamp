@@ -7,6 +7,28 @@ const bcrypt = require("bcryptjs");  // ADD THIS LINE AT TOP
 const createCaregiver = async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
+
+    const tenantId = req.user?.tenantId;
+    const plan = req.plan;
+    if (!tenantId || !plan) {
+      return res.status(403).json({
+        message: "Plan selection is required before managing caregivers.",
+        code: "PLAN_REQUIRED",
+      });
+    }
+
+    const currentCount = await Caregiver.countDocuments({
+      tenantId,
+      role: "caregiver",
+    });
+
+    if (typeof plan.maxCaregivers === "number" && currentCount >= plan.maxCaregivers) {
+      return res.status(403).json({
+        message: "Caregiver limit reached for your plan.",
+        code: "CARESEAT_LIMIT",
+        maxCaregivers: plan.maxCaregivers,
+      });
+    }
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -18,6 +40,7 @@ const createCaregiver = async (req, res) => {
       email,
       password: hashedPassword,
       // role is DB-owned; do not accept from client
+      tenantId,
     });
     
     // Hide password in response
@@ -32,7 +55,15 @@ const createCaregiver = async (req, res) => {
 // @route  GET /api/caregivers
 const getCaregivers = async (req, res) => {
   try {
-    const caregivers = await Caregiver.find().select(
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const caregivers = await Caregiver.find({ tenantId }).select(
       "firstName lastName email role clerkUserId isActive createdAt updatedAt"
     );
     res.json(caregivers);

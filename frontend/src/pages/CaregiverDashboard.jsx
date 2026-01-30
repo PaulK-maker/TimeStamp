@@ -101,7 +101,7 @@ const CaregiverDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [calculateTotals, logout]);
+  }, [calculateTotals, fetchMyRequests, logout]);
 
   const handlePunchIn = async () => {
     try {

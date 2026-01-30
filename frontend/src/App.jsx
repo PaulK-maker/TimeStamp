@@ -34,6 +34,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import ClerkTokenBridge from "./components/ClerkTokenBridge";
 import RequireAdmin from "./components/RequireAdmin";
+import RequireAdminPlanSelected from "./components/RequireAdminPlanSelected";
 import TopNav from "./components/TopNav";
 import Footer from "./components/Footer";
 import SignInPage from "./pages/SignInPage";
@@ -45,6 +46,10 @@ import ContactPage from "./pages/ContactPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import CalendarPage from "./pages/CalendarPage";
 import AdminPrintReportPage from "./pages/AdminPrintReportPage";
+import AdminBillingPage from "./pages/AdminBillingPage";
+import TenantSetupPage from "./pages/TenantSetupPage";
+import RequireSuperadmin from "./components/RequireSuperadmin";
+import SuperadminDashboard from "./pages/SuperadminDashboard";
 
 function App() {
   return (
@@ -74,6 +79,7 @@ function App() {
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
           <Route path="/post-sign-in" element={<PostSignIn />} />
+          <Route path="/tenant-setup" element={<TenantSetupPage />} />
           <Route path="/sign-out" element={<SignOutPage />} />
 
           {/* Public info pages */}
@@ -107,8 +113,18 @@ function App() {
         <Route
           path="/admin"
           element={
-            <RequireAdmin>
+            <RequireAdminPlanSelected>
               <AdminDashboard />
+            </RequireAdminPlanSelected>
+          }
+        />
+
+        {/* Admin billing / plan selection */}
+        <Route
+          path="/admin/billing"
+          element={
+            <RequireAdmin>
+              <AdminBillingPage />
             </RequireAdmin>
           }
         />
@@ -117,9 +133,19 @@ function App() {
         <Route
           path="/admin/reports/print"
           element={
-            <RequireAdmin>
+            <RequireAdminPlanSelected>
               <AdminPrintReportPage />
-            </RequireAdmin>
+            </RequireAdminPlanSelected>
+          }
+        />
+
+        {/* Superadmin (read-only) */}
+        <Route
+          path="/superadmin"
+          element={
+            <RequireSuperadmin>
+              <SuperadminDashboard />
+            </RequireSuperadmin>
           }
         />
 
