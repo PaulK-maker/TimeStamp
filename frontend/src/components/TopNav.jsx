@@ -58,14 +58,25 @@ export default function TopNav() {
             Dashboard
           </NavLink>
 
-          {role === "admin" && (
+          {(role === "admin" || role === "superadmin") && (
             <NavLink
               to="/admin"
               className={({ isActive }) =>
-                `btn btnPrimary topNavBtn${isActive ? " topNavBtnActive" : ""}`
+                `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
               }
             >
-              /admin
+              Admin
+            </NavLink>
+          )}
+
+          {role === "superadmin" && (
+            <NavLink
+              to="/superadmin"
+              className={({ isActive }) =>
+                `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
+              }
+            >
+              Superadmin
             </NavLink>
           )}
         </div>
