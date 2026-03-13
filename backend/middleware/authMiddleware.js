@@ -37,6 +37,23 @@ function normalizeEmail(email) {
   return (email || "").trim().toLowerCase();
 }
 
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  return authHeader.slice("Bearer ".length).trim() || null;
+}
+
+function getClerkAuthorizedParties() {
+  return (
+    process.env.CLERK_AUTHORIZED_PARTIES ||
+    process.env.ALLOWED_ORIGINS ||
+    "http://localhost:3000,http://localhost:3001"
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => /^https?:\/\//i.test(origin));
+}
+
 function getRoleFromClerkUser(clerkUser) {
   const raw = clerkUser?.publicMetadata?.role;
 
@@ -61,36 +78,72 @@ function getRoleFromClerkUser(clerkUser) {
 }
 
 module.exports = (req, res, next) => {
+  const bearerToken = getBearerToken(req);
+  const bearerPayload = decodeJwtPayload(bearerToken);
+  const issuer =
+    bearerPayload && typeof bearerPayload.iss === "string"
+      ? bearerPayload.iss
+      : "";
+  const looksLikeClerkToken = issuer.toLowerCase().includes("clerk");
+
   // 1) Prefer Clerk auth when enabled.
   // clerkMiddleware() (in server.js) populates request auth state.
   if (process.env.CLERK_SECRET_KEY) {
     try {
       const { getAuth, clerkClient } = require("@clerk/express");
+      const { verifyToken } = require("@clerk/backend");
       const auth = getAuth(req);
 
-      if (auth && auth.userId) {
+      const resolveClerkAuth = async () => {
+        if (auth && auth.userId) {
+          return {
+            userId: auth.userId,
+            sessionId: auth.sessionId || null,
+          };
+        }
+
+        if (!bearerToken || !looksLikeClerkToken) {
+          return null;
+        }
+
+        const verified = await verifyToken(bearerToken, {
+          secretKey: process.env.CLERK_SECRET_KEY,
+          authorizedParties: getClerkAuthorizedParties(),
+        });
+
+        if (!verified || !verified.sub) {
+          return null;
+        }
+
+        return {
+          userId: verified.sub,
+          sessionId: verified.sid || null,
+        };
+      };
+
+      if ((auth && auth.userId) || looksLikeClerkToken) {
         // Map Clerk user to local staff so downstream code can use ObjectIds.
         // TimeEntry.staff expects a Staff ObjectId, not a Clerk string id.
-        const attachFromStaff = (staffMember) => {
+        const attachFromStaff = (staffMember, clerkAuth) => {
           req.user = {
             id: staffMember._id.toString(),
             staffId: staffMember._id.toString(),
             role: staffMember.role,
-            clerkUserId: auth.userId,
-            sessionId: auth.sessionId,
+            clerkUserId: clerkAuth.userId,
+            sessionId: clerkAuth.sessionId,
             email: staffMember.email,
             tenantId: staffMember.tenantId ? staffMember.tenantId.toString() : null,
           };
         };
 
-        const ensureStaff = async () => {
+        const ensureStaff = async (clerkAuth) => {
           // 1) Fast path by clerkUserId
-          let staffMember = await Staff.findOne({ clerkUserId: auth.userId });
+          let staffMember = await Staff.findOne({ clerkUserId: clerkAuth.userId });
           if (staffMember) {
             // Safety: never automatically switch identities based on email.
             // If Clerk email doesn't match the linked record, log for manual cleanup.
             try {
-              const clerkUser = await clerkClient.users.getUser(auth.userId);
+              const clerkUser = await clerkClient.users.getUser(clerkAuth.userId);
               const primaryEmailId = clerkUser.primaryEmailAddressId;
               const emailAddress = (clerkUser.emailAddresses || []).find(
                 (e) => e.id === primaryEmailId
@@ -112,7 +165,7 @@ module.exports = (req, res, next) => {
                 const byEmail = await Staff.findOne({ email: clerkEmail });
                 if (byEmail && byEmail._id.toString() !== staffMember._id.toString()) {
                   console.warn("Clerk linking collision detected (clerkUserId vs email). Using clerkUserId-linked record.", {
-                    clerkUserId: auth.userId,
+                    clerkUserId: clerkAuth.userId,
                     clerkEmail,
                     staffIdByClerkUserId: staffMember._id.toString(),
                     staffEmailByClerkUserId: staffMember.email,
@@ -121,7 +174,7 @@ module.exports = (req, res, next) => {
                   });
                 } else {
                   console.warn("Clerk-linked staff email differs from Clerk email. Using clerkUserId-linked record.", {
-                    clerkUserId: auth.userId,
+                    clerkUserId: clerkAuth.userId,
                     clerkEmail,
                     staffId: staffMember._id.toString(),
                     staffEmail: staffMember.email,
@@ -136,7 +189,7 @@ module.exports = (req, res, next) => {
           }
 
           // 2) Fetch Clerk user to get email/name
-          const clerkUser = await clerkClient.users.getUser(auth.userId);
+          const clerkUser = await clerkClient.users.getUser(clerkAuth.userId);
           const primaryEmailId = clerkUser.primaryEmailAddressId;
           const emailAddress = (clerkUser.emailAddresses || []).find(
             (e) => e.id === primaryEmailId
@@ -157,9 +210,9 @@ module.exports = (req, res, next) => {
           staffMember = await Staff.findOne({ email: clerkEmail });
           if (staffMember) {
             // If it's already linked to a *different* Clerk user, do not switch/merge.
-            if (staffMember.clerkUserId && staffMember.clerkUserId !== auth.userId) {
+            if (staffMember.clerkUserId && staffMember.clerkUserId !== clerkAuth.userId) {
               console.warn("Clerk linking blocked: email is already linked to another clerkUserId.", {
-                clerkUserId: auth.userId,
+                clerkUserId: clerkAuth.userId,
                 clerkEmail,
                 staffId: staffMember._id.toString(),
                 existingClerkUserId: staffMember.clerkUserId,
@@ -176,7 +229,7 @@ module.exports = (req, res, next) => {
                 },
                 {
                   $set: {
-                    clerkUserId: auth.userId,
+                    clerkUserId: clerkAuth.userId,
                     ...(desiredRole ? { role: desiredRole } : {}),
                   },
                 },
@@ -186,7 +239,7 @@ module.exports = (req, res, next) => {
               if (linked) return linked;
 
               // If we lost the race, re-read by clerkUserId.
-              const byClerk = await Staff.findOne({ clerkUserId: auth.userId });
+              const byClerk = await Staff.findOne({ clerkUserId: clerkAuth.userId });
               if (byClerk) return byClerk;
             }
 
@@ -212,14 +265,14 @@ module.exports = (req, res, next) => {
               lastName: lastName || "User",
               email: clerkEmail,
               role,
-              clerkUserId: auth.userId,
+              clerkUserId: clerkAuth.userId,
             });
           } catch (createErr) {
             // React StrictMode (dev) + concurrent requests can cause a race:
             // two requests try to provision the same user at once.
             // If we lose the race, re-fetch and continue instead of returning 401.
             if (createErr && createErr.code === 11000) {
-              const byClerk = await Staff.findOne({ clerkUserId: auth.userId });
+              const byClerk = await Staff.findOne({ clerkUserId: clerkAuth.userId });
               if (byClerk) return byClerk;
 
               const byEmail = await Staff.findOne({ email: clerkEmail });
@@ -233,18 +286,35 @@ module.exports = (req, res, next) => {
         };
 
         // authMiddleware is not declared async; bridge with a promise.
-        return ensureStaff()
-          .then((staffMember) => {
+        return resolveClerkAuth()
+          .then((clerkAuth) => {
+            if (!clerkAuth) {
+              if (looksLikeClerkToken) {
+                throw new Error("Clerk token did not resolve to an authenticated user");
+              }
+              return null;
+            }
+
+            return ensureStaff(clerkAuth).then((staffMember) => ({
+              clerkAuth,
+              staffMember,
+            }));
+          })
+          .then((result) => {
+            if (!result) return next();
+            const { clerkAuth, staffMember } = result;
             if (staffMember && staffMember.isActive === false) {
               return res.status(403).json({ message: "Account disabled" });
             }
-            attachFromStaff(staffMember);
+            attachFromStaff(staffMember, clerkAuth);
             next();
           })
           .catch((error) => {
             console.error("Clerk staff linking failed:", error);
             res.status(401).json({
-              message: "Unauthorized",
+              message: looksLikeClerkToken
+                ? "Clerk token verification failed. Confirm the frontend publishable key and backend CLERK_SECRET_KEY belong to the same Clerk application, restart the backend after env changes, and ensure REACT_APP_API_BASE_URL points to this backend."
+                : "Unauthorized",
               ...(process.env.NODE_ENV !== "production"
                 ? { detail: error?.message || String(error) }
                 : {}),
@@ -257,20 +327,16 @@ module.exports = (req, res, next) => {
   }
 
   // 2) Legacy JWT auth fallback (to avoid breaking existing frontend during migration).
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
+  if (!req.headers.authorization) {
     return res.status(401).json({ message: "No token provided" });
   }
 
-  const token = authHeader.split(" ")[1];
-  const payload = decodeJwtPayload(token);
-  const iss = payload && typeof payload.iss === "string" ? payload.iss : "";
-  const looksLikeClerkToken = iss.toLowerCase().includes("clerk");
+  const token = bearerToken;
 
   // Helpful guidance: if the frontend is sending a Clerk session token but the backend
   // isn't configured with CLERK_SECRET_KEY, JWT verification will always fail.
   if (!process.env.CLERK_SECRET_KEY) {
-    if (iss.toLowerCase().includes("clerk")) {
+    if (looksLikeClerkToken) {
       return res.status(401).json({
         message:
           "Backend is not configured for Clerk. Set CLERK_SECRET_KEY in backend/.env and restart the server so /api/auth/me can validate Clerk session tokens.",
