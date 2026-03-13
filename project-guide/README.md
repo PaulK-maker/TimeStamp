@@ -14,4 +14,4 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 
 ## Project Overview
 
-TimeStamp is a web application designed for caregivers to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.
+TimeStamp is a web application designed for staff to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.

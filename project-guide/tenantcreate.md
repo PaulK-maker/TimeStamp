@@ -1,33 +1,26 @@
-# Tenant Setup (Create Facility + Assign Users)
+# Facility Setup Guide
 
-This guide walks you through creating/choosing a **Tenant (Facility)**, assigning your users to it, generating a human-friendly **facility code (`tenantCode`)**, and selecting a plan so admins can use gated features.
+This guide explains the safest, easiest way for a non-technical admin to:
 
-> Why this exists: if you see `TENANT_REQUIRED` / “Tenant not assigned for this account” / a `403` from `/api/billing/me`, it means your logged-in user’s local `Caregiver` record has no `tenantId` yet.
+- create a new facility
+- invite a new staff member
+- help the staff member join the correct facility
 
----
-
-## What “Tenant” means in this app
-
-- A **Tenant** = one facility (one customer).
-- Each local **Caregiver** belongs to exactly one tenant via `Caregiver.tenantId`.
-- Your plan and feature gates (data management / printing) are enforced **per tenant**.
+The recommended workflow uses the app UI. Scripts are only for legacy cleanup or technical support.
 
 ---
 
-## Prerequisites
+## Before you start
 
-1. Backend `.env` is set up (Mongo connection string, Clerk keys if using Clerk).
-2. You have at least one admin user you can log in with.
-3. (Optional) You can run Node scripts from the repo root for legacy migrations.
+Make sure all 3 of these are true:
 
----
+1. The backend is running.
+2. The frontend is running.
+3. You can sign in as an admin.
 
-## Step 1 — Start the app locally (recommended)
+If you are setting this up locally, start the app like this.
 
-Open two terminals.
-
-### Terminal A (backend)
-From repo root:
+### Backend
 
 ```bash
 cd backend
@@ -35,10 +28,7 @@ npm install
 npm start
 ```
 
-(If your project uses `node server.js` instead of `npm start`, use that.)
-
-### Terminal B (frontend)
-From repo root:
+### Frontend
 
 ```bash
 cd frontend
@@ -48,248 +38,289 @@ npm start
 
 ---
 
-## Step 2 — Create/choose a Tenant and assign users (recommended: in-app)
+## What a facility means in this app
 
-Most users should NOT run scripts.
+- One facility = one tenant.
+- Each staff member belongs to exactly one facility.
+- Billing, plan limits, and admin features are tied to that facility.
 
-### 2A) Admin: create your facility (no scripts)
+This is designed to be safe for non-technical users:
+
+- staff do not choose from a list of facilities
+- staff join by a one-time invite code
+- the app prevents a signed-in user from switching facilities by accident
+
+---
+
+## Quick answer
+
+If you only need the shortest version:
+
+### To add a new facility
 
 1. Sign in as an admin.
-2. Open:
+2. Open `/admin/billing`.
+3. If you see **Setup required**, click **Email me a one-time setup code**.
+4. Enter the 6-digit code.
+5. Click **Verify & create facility**.
+6. Select a plan.
+
+### To add a new staff member
+
+1. Sign in as an admin.
+2. Open `/admin/billing`.
+3. In **Invite staff member by email (one-time code)**, enter the staff member's email.
+4. Click **Send invite code**.
+5. Tell the staff member to sign in with that same email.
+6. Tell them to open `/tenant-setup` and enter the 6-digit code.
+
+---
+
+## Part 1: Add a new facility
+
+Use this when you are creating a facility for the first time.
+
+### Step 1: Sign in as an admin
+
+Sign in with your admin account.
+
+If your account is valid but not yet attached to a facility, the app will usually guide you toward setup.
+
+### Step 2: Open the Billing page
+
+Go to:
 
 ```text
 /admin/billing
 ```
 
-3. If you see “Setup required”, click **Create my facility**.
+### Step 3: Start facility setup
 
-After this:
-- Your admin account is assigned to the new tenant.
-- The page will show your facility code (`tenantCode`) like `ABCD-1234`.
+If the page shows **Setup required**, use the box labeled:
 
-### 2B) Caregiver: join the facility by invite code (OTP)
+`Create your facility (recommended)`
 
-If a caregiver signs in but has no tenant yet, they will be routed to:
+You may enter a facility name first, but this is optional.
 
-```text
-/tenant-setup
-```
+Then click:
 
-They can enter the 6-digit invite code the admin generated.
+`Email me a one-time setup code`
 
-How the admin generates the invite code:
-- Go to `/admin/billing`
-- Use **Invite caregiver by email (one-time code)**
+### Step 4: Enter the 6-digit code
 
-Note:
-- The user must be signed in with the same email address the invite was sent to.
+The app sends a one-time code to the admin email you are signed in with.
 
----
+Enter that code in the **One-time code** field and click:
 
-## Step 3 — Legacy migration (scripts)
+`Verify & create facility`
 
-These scripts are kept for legacy databases and ops use. They:
+### Step 5: Confirm the facility was created
 
-- Ensure a tenant exists (create one if needed)
-- Assign that tenant to any caregivers missing `tenantId`
-- Backfill `tenantId` onto time records that need it (hard scoping)
-- Ensure the selected tenant has a human-friendly `tenantCode`
+After success, the billing page should show:
 
-### 3A) Easiest path (single-tenant dev database)
+- the facility name
+- the facility code
+- the plan area
 
-From the repo root:
-
-```bash
-node backend/backfillTenantId.js
-```
-
-What you should see:
-- A printed “Tenant assigned” line
-- Caregivers matched / modified counts
-
-### 3B) If you have multiple tenants (or in production)
-
-In production, you MUST choose a tenant explicitly.
-
-Choose by Mongo tenant id:
-
-```bash
-TENANT_ID="<tenantObjectId>" node backend/backfillTenantId.js
-```
-
-Or choose by facility code:
-
-```bash
-TENANT_CODE="ABCD1234" node backend/backfillTenantId.js
-```
-
-Notes:
-- `TENANT_CODE` can be entered with dashes too: `ABCD-1234`.
-- The script is idempotent: it’s safe to run more than once.
-
----
-
-## Step 4 — Generate facility codes for existing tenants (one-time populate)
-
-If your DB had tenants created before `tenantCode` existed, you can populate codes.
-
-### 3A) Dry run (safe preview)
-
-```bash
-node backend/backfillTenantCode.js
-```
-
-This defaults to `DRY_RUN=true` and will print what it *would* write.
-
-### 3B) Write codes (recommended: single tenant)
-
-```bash
-TENANT_ID="<tenantObjectId>" DRY_RUN=false node backend/backfillTenantCode.js
-```
-
-### 3C) Write codes for ALL tenants
-
-Non-production:
-
-```bash
-ALLOW_ALL_TENANTS=true DRY_RUN=false node backend/backfillTenantCode.js
-```
-
-Production requires confirmation:
-
-```bash
-ALLOW_ALL_TENANTS=true CONFIRM=YES DRY_RUN=false node backend/backfillTenantCode.js
-```
-
----
-
-## Step 4 — Restart the backend
-
-After running scripts, restart your backend server.
-
-This ensures your next requests reflect the updated DB state.
-
----
-
-## Step 5 — Verify tenant assignment is working
-
-Open in your browser:
+The facility code looks like this:
 
 ```text
-http://localhost:5001/api/auth/me
+ABCD-1234
 ```
 
-Expected:
-- `user.tenantId` is not null
-- `user.tenantCode` is present
-- `user.tenantName` may be present
+Keep this code for support/reference. Normal staff do not need to type it during setup.
 
-If `user.tenantId` is still null:
-- Your signed-in identity is not linked to the local `Caregiver` record you updated.
-- Most often this is a Clerk linkage issue (see Troubleshooting below).
+### Step 6: Select a plan
+
+Choose the facility plan on the same billing page.
+
+This is required before the admin features are fully available.
+
+After selecting a plan, the app should take you back to:
+
+```text
+/admin
+```
 
 ---
 
-## Step 6 — Select your pricing plan (required)
+## Part 2: Add a new staff member
 
-Admins must select a plan before using gated features.
+Use this after the facility already exists.
 
-1. Go to the billing page:
+### Step 1: Open the Billing page
+
+Go to:
 
 ```text
 /admin/billing
 ```
 
-2. Select a plan.
-3. You should be redirected back to `/admin`.
+### Step 2: Find the invite section
 
-If you still see `403` from `/api/billing/me`:
-- You are still missing `tenantId` on the current account.
-- Re-run Step 2 and then restart backend.
+Use the section labeled:
+
+`Invite staff member by email (one-time code)`
+
+### Step 3: Enter the staff member's email
+
+Enter the exact email address the staff member will use to sign in.
+
+This is important.
+
+The invite only works if:
+
+- the admin sends the code to `name@example.com`
+- the staff member signs in using `name@example.com`
+
+If they sign in with a different email, the code will not attach them to the facility.
+
+### Step 4: Send the code
+
+Click:
+
+`Send invite code`
+
+If email is configured on the server, the staff member will receive the code by email.
+
+If email is not configured, the app shows a **Copy-code fallback** box. In that case:
+
+1. copy the code
+2. send it to the staff member manually
+3. remind them that the code expires
+
+### Step 5: Tell the staff member exactly what to do
+
+Send these instructions to the staff member:
+
+1. Sign in with the same email address the invite was sent to.
+2. Open `/tenant-setup`.
+3. Enter the 6-digit invite code.
+4. Click **Join with invite code**.
+
+### Step 6: Confirm they joined successfully
+
+After they redeem the code, the app assigns them to the facility and sends them to the correct dashboard.
+
+For a normal staff member, that should be:
+
+```text
+/staff
+```
 
 ---
 
-## What the UI should show when working
+## Recommended wording for a non-technical admin
 
-- Admin Dashboard shows:
-  - `Facility code: XXXX-XXXX`
-- Admin Billing page shows:
-  - The facility code (same `tenantCode`)
+If you are writing instructions for office staff or a facility manager, use wording like this:
+
+### Create a facility
+
+1. Sign in as admin.
+2. Open Billing.
+3. Request the setup code.
+4. Enter the code from your email.
+5. Create the facility.
+6. Pick a plan.
+
+### Add a staff member
+
+1. Open Billing.
+2. Enter the staff member's email.
+3. Send the invite code.
+4. Tell the staff member to sign in with the same email the invite was sent to.
+5. Tell them to enter the code on the Join Facility page.
+
+That flow is easier and safer than asking staff to choose a facility manually.
+
+---
+
+## Why this flow is safe for non-technical users
+
+This setup is intentionally designed to reduce mistakes.
+
+- No facility picker: staff cannot accidentally join the wrong facility from a dropdown.
+- Email match required: the invite is tied to the staff member's signed-in email.
+- One-time codes expire: an old code cannot be reused forever.
+- One facility per user: once assigned, the account is not supposed to bounce between facilities.
+- Admin-led setup: the facility admin controls who gets invited.
 
 ---
 
 ## Troubleshooting
 
-### A) “TENANT_REQUIRED” / `403` from `/api/billing/me`
-Cause: The current logged-in user does not have `req.user.tenantId`.
+### Problem: I see `Setup required`
+
+Meaning: your signed-in account exists, but it is not attached to a facility yet.
 
 Fix:
-1. Run:
-   ```bash
-   node backend/backfillTenantId.js
-   ```
-2. Restart backend.
-3. Refresh the browser.
 
-### B) `/api/auth/me` shows `tenantId: null` even after backfill
-Most common causes:
+1. Go to `/admin/billing`.
+2. Use **Create your facility (recommended)**.
+3. Request the setup code.
+4. Verify the code.
 
-- You’re using Clerk auth but there is no local `Caregiver` record linked to your Clerk user.
-- Your Clerk email changed or the record is linked to the wrong `clerkUserId`.
+### Problem: The staff member says the invite code does not work
 
-Fix checklist:
-- Verify there is a `Caregiver` in Mongo with `clerkUserId` matching your signed-in Clerk user.
-- Verify that caregiver has a `tenantId` set.
+Check these first:
 
-### C) Multiple tenants exist; script refuses to guess
-This is expected behavior to avoid production mistakes.
+1. Did they sign in with the same email address the code was sent to?
+2. Did the code expire?
+3. Did they enter the code on `/tenant-setup`?
 
-Use:
-- `TENANT_ID="..." node backend/backfillTenantId.js` or
-- `TENANT_CODE="..." node backend/backfillTenantId.js`
+If needed, send a fresh code from `/admin/billing`.
 
-### D) I want to create a new tenant (new facility)
-This project currently creates tenants via scripts/backfill and does not yet provide a dedicated “Create Tenant” admin UI.
+### Problem: The admin does not receive the setup code email
 
-Recommended workflow today:
-1. Create the tenant directly in MongoDB (insert into `tenants` collection) with at least:
-   - `name`
-   - (optional) `planSelected=false`
-2. Run `node backend/backfillTenantCode.js` to generate a `tenantCode`.
-3. Assign caregivers to that tenant by setting their `tenantId` (or by running a scripted backfill targeting that tenant).
+If email is not configured, the app should show a fallback code on screen.
 
-If you want, we can add a dedicated admin-only API/UI to create tenants later.
+Use that code directly.
+
+### Problem: The invited user signs in but is not in the facility
+
+This usually means one of these:
+
+1. they used the wrong email address
+2. they never completed `/tenant-setup`
+3. their code expired before they redeemed it
+
+The safest fix is to send a new invite code and have them try again.
+
+### Problem: Billing says tenant is missing
+
+If you still see `TENANT_REQUIRED`, the current account is not correctly linked to a local staff record with a `tenantId`.
+
+For normal day-to-day use, do not run scripts first. Try the in-app setup flow again.
+
+If that still fails, then a technical admin can investigate the local staff record and legacy backfill scripts.
 
 ---
 
-## Reference commands (quick copy/paste)
+## Legacy scripts
 
-- Assign tenant (dev):
-  ```bash
-  node backend/backfillTenantId.js
-  ```
+These are for technical support, not for most admins.
 
-- Assign tenant by tenant id:
-  ```bash
-  TENANT_ID="<tenantObjectId>" node backend/backfillTenantId.js
-  ```
+### Assign tenant data in older databases
 
-- Assign tenant by facility code:
-  ```bash
-  TENANT_CODE="ABCD1234" node backend/backfillTenantId.js
-  ```
+```bash
+node backend/backfillTenantId.js
+```
 
-- Populate missing facility codes (dry run):
-  ```bash
-  node backend/backfillTenantCode.js
-  ```
+### Backfill missing facility codes
 
-- Populate missing facility codes (write, single tenant):
-  ```bash
-  TENANT_ID="<tenantObjectId>" DRY_RUN=false node backend/backfillTenantCode.js
-  ```
+```bash
+node backend/backfillTenantCode.js
+```
 
-- Populate missing facility codes (write, all tenants, production):
-  ```bash
-  ALLOW_ALL_TENANTS=true CONFIRM=YES DRY_RUN=false node backend/backfillTenantCode.js
-  ```
+Only use these when cleaning up an older database or when the normal UI flow cannot complete due to legacy data.
+
+---
+
+## Best practice checklist for admins
+
+- Create the facility first.
+- Select a plan immediately.
+- Invite staff by email, not by sharing a code widely.
+- Tell staff to sign in with the same email the invite was sent to.
+- Resend a fresh code instead of troubleshooting an old one for too long.
+- Keep the facility code for support, but do not treat it like the invite code.
