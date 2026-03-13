@@ -155,7 +155,7 @@ export default function AdminPrintReportPage() {
 
       const params = {};
       if (selectedCaregiverId && selectedCaregiverId !== "all") {
-        params.caregiverId = selectedCaregiverId;
+        params.staffId = selectedCaregiverId;
       }
       if (start) params.startDate = start.toISOString();
       if (end) params.endDate = end.toISOString();
@@ -197,7 +197,7 @@ export default function AdminPrintReportPage() {
   const caregivers = useMemo(() => {
     const map = new Map();
     for (const log of rawLogs) {
-      const c = log.caregiver;
+      const c = log.staff;
       if (!c?._id) continue;
       map.set(String(c._id), c);
     }
@@ -281,12 +281,12 @@ export default function AdminPrintReportPage() {
   const perCaregiver = useMemo(() => {
     const map = new Map();
     for (const log of derivedLogs) {
-      const caregiverId = String(log.caregiver?._id || "");
+      const caregiverId = String(log.staff?._id || "");
       if (!caregiverId) continue;
       if (!map.has(caregiverId)) {
         map.set(caregiverId, {
           caregiverId,
-          caregiver: log.caregiver,
+          caregiver: log.staff,
           logs: [],
         });
       }
@@ -458,13 +458,13 @@ export default function AdminPrintReportPage() {
           </label>
 
           <label>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>Caregiver</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>Staff member</div>
             <select
               value={selectedCaregiverId}
               onChange={(e) => setSelectedCaregiverId(e.target.value)}
               style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--border)" }}
             >
-              <option value="all">All caregivers (filtered by date range)</option>
+              <option value="all">All staff members (filtered by date range)</option>
               {caregivers.map((c) => (
                 <option key={c._id} value={c._id}>
                   {(c.firstName || "")} {(c.lastName || "")} ({c.email})
@@ -554,7 +554,7 @@ export default function AdminPrintReportPage() {
               disabled={selectedCaregiverId !== "all"}
               onChange={(e) => setPrintPerCaregiver(e.target.checked)}
             />
-            Print one page per caregiver (only when "All caregivers" is selected)
+            Print one page per staff member (only when "All staff members" is selected)
           </label>
         </div>
 
@@ -659,7 +659,7 @@ export default function AdminPrintReportPage() {
             <thead>
               <tr>
                 <th align="left">Include</th>
-                <th align="left">Caregiver</th>
+                <th align="left">Staff</th>
                 <th align="left">Shift</th>
                 <th align="left">Punch In</th>
                 <th align="left">Punch Out</th>
@@ -686,8 +686,8 @@ export default function AdminPrintReportPage() {
                       />
                     </td>
                     <td>
-                      {log.caregiver?.firstName} {log.caregiver?.lastName}
-                      <div style={{ color: "var(--muted)", fontSize: 12 }}>{log.caregiver?.email}</div>
+                      {log.staff?.firstName} {log.staff?.lastName}
+                      <div style={{ color: "var(--muted)", fontSize: 12 }}>{log.staff?.email}</div>
                     </td>
                     <td>{getShiftLabelFromPunchIn(inn)}</td>
                     <td>{formatDateTime(inn)}</td>
@@ -718,7 +718,7 @@ export default function AdminPrintReportPage() {
                       <h2 style={{ margin: 0 }}>Hours Report</h2>
                       <div style={{ color: "var(--muted)" }}>{facilityName?.trim() || "Facility: __________"}</div>
                       <div style={{ color: "var(--muted)" }}>
-                        Caregiver: {caregiverName || "__________"}
+                        Staff: {caregiverName || "__________"}
                         {g.caregiver?.email ? ` (${g.caregiver.email})` : ""}
                       </div>
                       <div style={{ color: "var(--muted)" }}>
@@ -775,7 +775,7 @@ export default function AdminPrintReportPage() {
                   <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "12px 0" }} />
 
                   <div className="noPrint" style={{ marginBottom: 12 }}>
-                    <h3 style={{ margin: 0, marginBottom: 8 }}>Per-caregiver adjustments</h3>
+                    <h3 style={{ margin: 0, marginBottom: 8 }}>Per-staff adjustments</h3>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                       <div>
                         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -842,7 +842,7 @@ export default function AdminPrintReportPage() {
                       </div>
                     </div>
                     <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
-                      Tip: these values print per caregiver; the global optional fields act as defaults.
+                      Tip: these values print per staff member; the global optional fields act as defaults.
                     </div>
                   </div>
 

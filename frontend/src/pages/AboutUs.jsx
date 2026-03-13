@@ -5,7 +5,7 @@ export default function AboutUs() {
     <div className="container">
       <h1 className="pageTitle">About Us</h1>
       <p className="pageSubtitle">
-        TimeStamp is a simple time tracking app designed to help caregivers clock in/out,
+        TimeStamp is a simple time tracking app designed to help staff clock in/out,
         review their shifts, and help admins review logs.
       </p>
 

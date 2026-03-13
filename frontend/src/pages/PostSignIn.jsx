@@ -32,7 +32,7 @@ export default function PostSignIn() {
           setNextPath("/tenant-setup");
           return;
         }
-        setNextPath(role === "admin" ? "/admin" : "/caregiver");
+        setNextPath(role === "admin" ? "/admin" : "/staff");
       } catch (err) {
     const status = err?.response?.status;
     const serverMessage = err?.response?.data?.message;

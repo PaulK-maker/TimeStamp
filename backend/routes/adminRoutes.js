@@ -6,8 +6,8 @@ const authorizeRoles = require("../middleware/roleMiddleware");
 const { requireFeature } = require("../middleware/tenantPlanMiddleware");
 const {
   getAllTimeLogs,
-  promoteCaregiverToAdmin,
-  demoteAdminToCaregiver,
+  promoteStaffToAdmin,
+  demoteAdminToStaff,
   deleteUser,
 } = require("../controllers/adminControllers");
 
@@ -43,27 +43,27 @@ router.get(
   getAllTimeLogs
 );
 
-// Promote an existing caregiver to admin by email
+// Promote an existing staff member to admin by email
 router.post(
   "/promote",
   auth,
   authorizeRoles("admin"),
   requireFeature("dataManagement"),
-  promoteCaregiverToAdmin
+  promoteStaffToAdmin
 );
 
-// Demote an admin to caregiver (by id or email)
+// Demote an admin to staff (by id or email)
 router.post(
   "/demote",
   auth,
   authorizeRoles("admin"),
   requireFeature("dataManagement"),
-  demoteAdminToCaregiver
+  demoteAdminToStaff
 );
 
 // Delete (deprovision) a user (Clerk + local deactivate)
 router.delete(
-  "/users/:caregiverId",
+  "/users/:staffId",
   auth,
   authorizeRoles("admin"),
   requireFeature("dataManagement"),

@@ -8,7 +8,7 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const caregiverRoutes = require("./routes/caregiverRoutes");
+const staffRoutes = require("./routes/staffRoutes");
 const timeClockRoutes = require("./routes/timeClockRoutes");
 const missedPunchRoutes = require("./routes/missedPunchRoutes");
 const billingRoutes = require("./routes/billingRoutes");
@@ -86,7 +86,7 @@ app.use(express.urlencoded({ extended: true }));
 // 4. Health and test endpoints
 app.get("/", (req, res) => {
   res.json({
-    message: "Caregiver Time Clock API ✅",
+    message: "Staff Time Clock API ✅",
     status: "running",
     timestamp: new Date().toISOString(),
   });
@@ -117,7 +117,7 @@ if (ENABLE_MOCK_API) {
       logs: [
         {
           _id: "1",
-          caregiver: {
+          staff: {
             _id: "cg1",
             firstName: "Sarah",
             lastName: "Jones",
@@ -128,7 +128,7 @@ if (ENABLE_MOCK_API) {
           totalHours: "8.00",
         },
       ],
-      totalHoursPerCaregiver: [],
+      totalHoursPerStaff: [],
     });
   });
 
@@ -193,7 +193,7 @@ if (ENABLE_MOCK_API) {
       {
         email: "sarah.jones@test.com",
         password: "Sarah123!",
-        role: "caregiver",
+        role: "staff",
         id: "2",
       },
     ];
@@ -204,7 +204,7 @@ if (ENABLE_MOCK_API) {
       return res.json({
         message: "Login successful",
         token: `fake-token-for-${user.role}`,
-        caregiver: { email: user.email, role: user.role, id: user.id },
+        staff: { email: user.email, role: user.role, id: user.id },
       });
     }
 
@@ -218,7 +218,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/tenant", tenantRoutes);
 app.use("/api/tenant/otp", tenantOtpRoutes);
-app.use("/api/caregivers", caregiverRoutes);
+app.use("/api/staff", staffRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 app.use("/api/missed-punch", missedPunchRoutes);
 app.use("/api/superadmin", superadminRoutes);

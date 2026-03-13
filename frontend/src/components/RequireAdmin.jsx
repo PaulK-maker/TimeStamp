@@ -77,7 +77,7 @@ export default function RequireAdmin({ children }) {
   }
 
   if (role !== "admin") {
-    return <Navigate to="/caregiver" replace />;
+    return <Navigate to="/staff" replace />;
   }
 
   return <>{children}</>;

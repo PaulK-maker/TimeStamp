@@ -3,15 +3,11 @@ const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
 const { requirePlanSelected } = require("../middleware/tenantPlanMiddleware");
-const {
-  createCaregiver,
-  getCaregivers,
-} = require("../controllers/caregiverController");
+const { createStaff, getStaff } = require("../controllers/caregiverController");
 
-// Admin-only + must have selected a plan
 router.use(auth, authorizeRoles("admin"), requirePlanSelected());
 
-router.post("/", createCaregiver);
-router.get("/", getCaregivers);
+router.post("/", createStaff);
+router.get("/", getStaff);
 
 module.exports = router;

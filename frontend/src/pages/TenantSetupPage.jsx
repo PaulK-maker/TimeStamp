@@ -56,7 +56,7 @@ export default function TenantSetupPage() {
       const nextMe = await getMe({ cacheKey: userId, forceRefresh: true });
 
       const role = nextMe?.role;
-      const nextPath = role === "admin" ? "/admin" : "/caregiver";
+      const nextPath = role === "admin" ? "/admin" : "/staff";
       navigate(nextPath, { replace: true });
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to redeem invite code");
@@ -81,7 +81,7 @@ export default function TenantSetupPage() {
           {loading ? (
             <p>Loading…</p>
           ) : me?.tenantId ? (
-            <Navigate to={me?.role === "admin" ? "/admin" : "/caregiver"} replace />
+            <Navigate to={me?.role === "admin" ? "/admin" : "/staff"} replace />
           ) : (
             <>
               {error ? (

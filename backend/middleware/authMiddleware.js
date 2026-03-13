@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 
 const DEV_BOOTSTRAP_ENABLED =
   process.env.ENABLE_DEV_BOOTSTRAP === "true" &&
@@ -12,7 +12,7 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
-const ALLOWED_ROLES = new Set(["admin", "caregiver", "superadmin"]);
+const ALLOWED_ROLES = new Set(["admin", "staff", "superadmin"]);
 
 function isAdminEmail(email) {
   if (!DEV_BOOTSTRAP_ENABLED) return false;
@@ -51,10 +51,10 @@ function getRoleFromClerkUser(clerkUser) {
     const normalized = roles
       .filter((r) => typeof r === "string")
       .map((r) => r.trim().toLowerCase());
-    // Priority: superadmin > admin > caregiver
+    // Priority: superadmin > admin > staff
     if (normalized.includes("superadmin")) return "superadmin";
     if (normalized.includes("admin")) return "admin";
-    if (normalized.includes("caregiver")) return "caregiver";
+    if (normalized.includes("staff")) return "staff";
   }
 
   return null;
@@ -69,24 +69,24 @@ module.exports = (req, res, next) => {
       const auth = getAuth(req);
 
       if (auth && auth.userId) {
-        // Map Clerk user to local Caregiver so downstream code can use ObjectIds.
-        // TimeEntry.caregiver expects a Caregiver ObjectId, not a Clerk string id.
-        const attachFromCaregiver = (caregiver) => {
+        // Map Clerk user to local staff so downstream code can use ObjectIds.
+        // TimeEntry.staff expects a Staff ObjectId, not a Clerk string id.
+        const attachFromStaff = (staffMember) => {
           req.user = {
-            id: caregiver._id.toString(),
-            caregiverId: caregiver._id.toString(),
-            role: caregiver.role,
+            id: staffMember._id.toString(),
+            staffId: staffMember._id.toString(),
+            role: staffMember.role,
             clerkUserId: auth.userId,
             sessionId: auth.sessionId,
-            email: caregiver.email,
-            tenantId: caregiver.tenantId ? caregiver.tenantId.toString() : null,
+            email: staffMember.email,
+            tenantId: staffMember.tenantId ? staffMember.tenantId.toString() : null,
           };
         };
 
-        const ensureCaregiver = async () => {
+        const ensureStaff = async () => {
           // 1) Fast path by clerkUserId
-          let caregiver = await Caregiver.findOne({ clerkUserId: auth.userId });
-          if (caregiver) {
+          let staffMember = await Staff.findOne({ clerkUserId: auth.userId });
+          if (staffMember) {
             // Safety: never automatically switch identities based on email.
             // If Clerk email doesn't match the linked record, log for manual cleanup.
             try {
@@ -103,28 +103,28 @@ module.exports = (req, res, next) => {
 
               // Option A (primary): Clerk publicMetadata.role is the source of truth.
               // Dev-only fallback (optional): allowlist can bootstrap admin if metadata isn't set.
-              if (desiredRole && caregiver.role !== desiredRole) {
-                caregiver.role = desiredRole;
-                await caregiver.save();
+              if (desiredRole && staffMember.role !== desiredRole) {
+                staffMember.role = desiredRole;
+                await staffMember.save();
               }
 
-              if (clerkEmail && caregiver.email && caregiver.email !== clerkEmail) {
-                const byEmail = await Caregiver.findOne({ email: clerkEmail });
-                if (byEmail && byEmail._id.toString() !== caregiver._id.toString()) {
+              if (clerkEmail && staffMember.email && staffMember.email !== clerkEmail) {
+                const byEmail = await Staff.findOne({ email: clerkEmail });
+                if (byEmail && byEmail._id.toString() !== staffMember._id.toString()) {
                   console.warn("Clerk linking collision detected (clerkUserId vs email). Using clerkUserId-linked record.", {
                     clerkUserId: auth.userId,
                     clerkEmail,
-                    caregiverIdByClerkUserId: caregiver._id.toString(),
-                    caregiverEmailByClerkUserId: caregiver.email,
-                    caregiverIdByEmail: byEmail._id.toString(),
-                    caregiverRoleByEmail: byEmail.role,
+                    staffIdByClerkUserId: staffMember._id.toString(),
+                    staffEmailByClerkUserId: staffMember.email,
+                    staffIdByEmail: byEmail._id.toString(),
+                    staffRoleByEmail: byEmail.role,
                   });
                 } else {
-                  console.warn("Clerk-linked caregiver email differs from Clerk email. Using clerkUserId-linked record.", {
+                  console.warn("Clerk-linked staff email differs from Clerk email. Using clerkUserId-linked record.", {
                     clerkUserId: auth.userId,
                     clerkEmail,
-                    caregiverId: caregiver._id.toString(),
-                    caregiverEmail: caregiver.email,
+                    staffId: staffMember._id.toString(),
+                    staffEmail: staffMember.email,
                   });
                 }
               }
@@ -132,7 +132,7 @@ module.exports = (req, res, next) => {
               // Non-fatal. If we can't fetch the Clerk user, we still trust clerkUserId linkage.
             }
 
-            return caregiver;
+            return staffMember;
           }
 
           // 2) Fetch Clerk user to get email/name
@@ -144,7 +144,7 @@ module.exports = (req, res, next) => {
 
           if (!emailAddress) {
             throw new Error(
-              "Clerk user has no email address; cannot link to caregiver"
+              "Clerk user has no email address; cannot link to staff"
             );
           }
 
@@ -153,25 +153,25 @@ module.exports = (req, res, next) => {
           const desiredRole =
             metadataRole || (clerkEmail && isAdminEmail(clerkEmail) ? "admin" : null);
 
-          // 3) Try to link existing caregiver by email
-          caregiver = await Caregiver.findOne({ email: clerkEmail });
-          if (caregiver) {
+          // 3) Try to link existing staff member by email
+          staffMember = await Staff.findOne({ email: clerkEmail });
+          if (staffMember) {
             // If it's already linked to a *different* Clerk user, do not switch/merge.
-            if (caregiver.clerkUserId && caregiver.clerkUserId !== auth.userId) {
+            if (staffMember.clerkUserId && staffMember.clerkUserId !== auth.userId) {
               console.warn("Clerk linking blocked: email is already linked to another clerkUserId.", {
                 clerkUserId: auth.userId,
                 clerkEmail,
-                caregiverId: caregiver._id.toString(),
-                existingClerkUserId: caregiver.clerkUserId,
+                staffId: staffMember._id.toString(),
+                existingClerkUserId: staffMember.clerkUserId,
               });
               throw new Error("Clerk email is already linked to a different account");
             }
 
             // Atomically claim the record if unlinked.
-            if (!caregiver.clerkUserId) {
-              const linked = await Caregiver.findOneAndUpdate(
+            if (!staffMember.clerkUserId) {
+              const linked = await Staff.findOneAndUpdate(
                 {
-                  _id: caregiver._id,
+                  _id: staffMember._id,
                   $or: [{ clerkUserId: { $exists: false } }, { clerkUserId: null }],
                 },
                 {
@@ -186,28 +186,28 @@ module.exports = (req, res, next) => {
               if (linked) return linked;
 
               // If we lost the race, re-read by clerkUserId.
-              const byClerk = await Caregiver.findOne({ clerkUserId: auth.userId });
+              const byClerk = await Staff.findOne({ clerkUserId: auth.userId });
               if (byClerk) return byClerk;
             }
 
             // If already linked (or after linking), sync role from Clerk metadata.
-            if (desiredRole && caregiver.role !== desiredRole) {
-              caregiver.role = desiredRole;
-              await caregiver.save();
+            if (desiredRole && staffMember.role !== desiredRole) {
+              staffMember.role = desiredRole;
+              await staffMember.save();
             }
 
-            return caregiver;
+            return staffMember;
           }
 
-          // 4) Auto-provision a caregiver record for new Clerk users
+          // 4) Auto-provision a staff record for new Clerk users
           const firstName = clerkUser.firstName || "";
           const lastName = clerkUser.lastName || "";
 
           // Option A: role is sourced from Clerk publicMetadata.role.
-          // Default remains caregiver.
-          const role = desiredRole || "caregiver";
+          // Default remains staff.
+          const role = desiredRole || "staff";
           try {
-            caregiver = await Caregiver.create({
+            staffMember = await Staff.create({
               firstName: firstName || "Clerk",
               lastName: lastName || "User",
               email: clerkEmail,
@@ -219,30 +219,30 @@ module.exports = (req, res, next) => {
             // two requests try to provision the same user at once.
             // If we lose the race, re-fetch and continue instead of returning 401.
             if (createErr && createErr.code === 11000) {
-              const byClerk = await Caregiver.findOne({ clerkUserId: auth.userId });
+              const byClerk = await Staff.findOne({ clerkUserId: auth.userId });
               if (byClerk) return byClerk;
 
-              const byEmail = await Caregiver.findOne({ email: clerkEmail });
+              const byEmail = await Staff.findOne({ email: clerkEmail });
               if (byEmail) return byEmail;
             }
 
             throw createErr;
           }
 
-          return caregiver;
+          return staffMember;
         };
 
         // authMiddleware is not declared async; bridge with a promise.
-        return ensureCaregiver()
-          .then((caregiver) => {
-            if (caregiver && caregiver.isActive === false) {
+        return ensureStaff()
+          .then((staffMember) => {
+            if (staffMember && staffMember.isActive === false) {
               return res.status(403).json({ message: "Account disabled" });
             }
-            attachFromCaregiver(caregiver);
+            attachFromStaff(staffMember);
             next();
           })
           .catch((error) => {
-            console.error("Clerk caregiver linking failed:", error);
+            console.error("Clerk staff linking failed:", error);
             res.status(401).json({
               message: "Unauthorized",
               ...(process.env.NODE_ENV !== "production"
@@ -279,19 +279,26 @@ module.exports = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // For legacy JWT sessions, load caregiver to attach tenantId and keep behavior consistent.
-    return Caregiver.findById(decoded.id)
-      .then((caregiver) => {
+    // For legacy JWT sessions, load staff to attach tenantId and keep behavior consistent.
+    return Staff.findById(decoded.id)
+      .then((staffMember) => {
         req.user = {
           id: decoded.id,
           role: decoded.role,
-          email: caregiver?.email || null,
-          tenantId: caregiver?.tenantId ? caregiver.tenantId.toString() : null,
+          staffId: decoded.id,
+          email: staffMember?.email || null,
+          tenantId: staffMember?.tenantId ? staffMember.tenantId.toString() : null,
         };
         return next();
       })
       .catch(() => {
-        req.user = { id: decoded.id, role: decoded.role, email: null, tenantId: null };
+        req.user = {
+          id: decoded.id,
+          staffId: decoded.id,
+          role: decoded.role,
+          email: null,
+          tenantId: null,
+        };
         return next();
       });
   } catch (err) {

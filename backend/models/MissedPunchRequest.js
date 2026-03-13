@@ -8,9 +8,9 @@ const missedPunchRequestSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-    caregiver: {
+    staff: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       required: true,
       index: true,
     },
@@ -43,7 +43,7 @@ const missedPunchRequestSchema = new mongoose.Schema(
     },
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       default: null,
     },
     reviewedAt: {

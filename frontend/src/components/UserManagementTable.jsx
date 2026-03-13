@@ -48,15 +48,15 @@ function Toast({ toast, onClose }) {
 }
 
 export default function UserManagementTable() {
-  const [caregivers, setCaregivers] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [searchText, setSearchText] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all"); // all | admin | caregiver
+  const [roleFilter, setRoleFilter] = useState("all"); // all | admin | staff
   const [statusFilter, setStatusFilter] = useState("active"); // active | inactive | all
 
-  const [currentCaregiverId, setCurrentCaregiverId] = useState(null);
+  const [currentStaffId, setCurrentStaffId] = useState(null);
   const [pendingById, setPendingById] = useState({});
   const [toast, setToast] = useState(null);
 
@@ -73,21 +73,21 @@ export default function UserManagementTable() {
   const fetchCurrentUser = useCallback(async () => {
     try {
       const res = await api.get("/auth/me");
-      const id = res?.data?.user?.caregiverId || res?.data?.user?.id || null;
-      setCurrentCaregiverId(id);
+      const id = res?.data?.user?.staffId || res?.data?.user?.id || null;
+      setCurrentStaffId(id);
     } catch {
       // Non-fatal: UI will still work, but self-protect buttons may not disable.
     }
   }, []);
 
-  const fetchCaregivers = useCallback(async () => {
+  const fetchStaff = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const res = await api.get("/caregivers");
+      const res = await api.get("/staff");
       const list = Array.isArray(res.data) ? res.data : [];
-      setCaregivers(list);
+      setStaffMembers(list);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load users");
     } finally {
@@ -97,13 +97,13 @@ export default function UserManagementTable() {
 
   useEffect(() => {
     fetchCurrentUser();
-    fetchCaregivers();
-  }, [fetchCaregivers, fetchCurrentUser]);
+    fetchStaff();
+  }, [fetchCurrentUser, fetchStaff]);
 
   const filtered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
 
-    return caregivers
+    return staffMembers
       .filter((c) => {
         if (roleFilter !== "all" && c.role !== roleFilter) return false;
 
@@ -124,7 +124,7 @@ export default function UserManagementTable() {
         if (a.role !== b.role) return a.role === "admin" ? -1 : 1;
         return String(a.email || "").localeCompare(String(b.email || ""));
       });
-  }, [caregivers, roleFilter, searchText, statusFilter]);
+  }, [roleFilter, searchText, staffMembers, statusFilter]);
 
   const setPending = useCallback((id, patch) => {
     setPendingById((prev) => ({
@@ -141,8 +141,8 @@ export default function UserManagementTable() {
     });
   }, []);
 
-  const updateCaregiverLocal = useCallback((id, patch) => {
-    setCaregivers((prev) => prev.map((c) => (c._id === id ? { ...c, ...patch } : c)));
+  const updateStaffLocal = useCallback((id, patch) => {
+    setStaffMembers((prev) => prev.map((c) => (c._id === id ? { ...c, ...patch } : c)));
   }, []);
 
   const handlePromote = useCallback(
@@ -165,8 +165,8 @@ export default function UserManagementTable() {
       setPending(c._id, { action: "promote" });
 
       try {
-        await api.post("/admin/promote", { caregiverId: c._id, email: c.email });
-        updateCaregiverLocal(c._id, { role: "admin" });
+        await api.post("/admin/promote", { staffId: c._id, email: c.email });
+        updateStaffLocal(c._id, { role: "admin" });
         showToast("success", `Promoted ${c.email} to admin.`);
       } catch (e) {
         showToast(
@@ -177,7 +177,7 @@ export default function UserManagementTable() {
         clearPending(c._id);
       }
     },
-    [clearPending, setPending, showToast, updateCaregiverLocal]
+    [clearPending, setPending, showToast, updateStaffLocal]
   );
 
   const handleDemote = useCallback(
@@ -190,24 +190,24 @@ export default function UserManagementTable() {
       }
 
       if (c.role !== "admin") {
-        showToast("info", "User is already a caregiver.");
+        showToast("info", "User is already staff.");
         return;
       }
 
-      if (currentCaregiverId && String(currentCaregiverId) === String(c._id)) {
+      if (currentStaffId && String(currentStaffId) === String(c._id)) {
         showToast("error", "You can’t demote your own account.");
         return;
       }
 
-      const ok = window.confirm(`Demote ${c.email} from admin to caregiver?`);
+      const ok = window.confirm(`Demote ${c.email} from admin to staff?`);
       if (!ok) return;
 
       setPending(c._id, { action: "demote" });
 
       try {
-        await api.post("/admin/demote", { caregiverId: c._id, email: c.email });
-        updateCaregiverLocal(c._id, { role: "caregiver" });
-        showToast("success", `Demoted ${c.email} to caregiver.`);
+        await api.post("/admin/demote", { staffId: c._id, email: c.email });
+        updateStaffLocal(c._id, { role: "staff" });
+        showToast("success", `Demoted ${c.email} to staff.`);
       } catch (e) {
         showToast(
           "error",
@@ -217,14 +217,14 @@ export default function UserManagementTable() {
         clearPending(c._id);
       }
     },
-    [clearPending, currentCaregiverId, setPending, showToast, updateCaregiverLocal]
+    [clearPending, currentStaffId, setPending, showToast, updateStaffLocal]
   );
 
   const handleDelete = useCallback(
     async (c) => {
       if (!c?._id) return;
 
-      if (currentCaregiverId && String(currentCaregiverId) === String(c._id)) {
+      if (currentStaffId && String(currentStaffId) === String(c._id)) {
         showToast("error", "You can’t delete your own account.");
         return;
       }
@@ -238,7 +238,7 @@ export default function UserManagementTable() {
 
       try {
         await api.delete(`/admin/users/${c._id}`);
-        updateCaregiverLocal(c._id, { isActive: false, role: "caregiver" });
+        updateStaffLocal(c._id, { isActive: false, role: "staff" });
         showToast("success", `Deleted ${c.email}.`);
       } catch (e) {
         showToast(
@@ -249,7 +249,7 @@ export default function UserManagementTable() {
         clearPending(c._id);
       }
     },
-    [clearPending, currentCaregiverId, setPending, showToast, updateCaregiverLocal]
+    [clearPending, currentStaffId, setPending, showToast, updateStaffLocal]
   );
 
   return (
@@ -273,7 +273,7 @@ export default function UserManagementTable() {
         <h2 style={{ margin: 0 }}>👥 User Management</h2>
 
         <button
-          onClick={fetchCaregivers}
+          onClick={fetchStaff}
           disabled={loading}
           style={{
             padding: "8px 12px",
@@ -336,7 +336,7 @@ export default function UserManagementTable() {
         >
           <option value="all">All roles</option>
           <option value="admin">Admins</option>
-          <option value="caregiver">Caregivers</option>
+          <option value="staff">Staff</option>
         </select>
 
         <select
@@ -354,7 +354,7 @@ export default function UserManagementTable() {
         </select>
 
         <div style={{ color: "#666" }}>
-          Showing <strong>{filtered.length}</strong> of <strong>{caregivers.length}</strong>
+          Showing <strong>{filtered.length}</strong> of <strong>{staffMembers.length}</strong>
         </div>
       </div>
 
@@ -375,7 +375,7 @@ export default function UserManagementTable() {
           </thead>
           <tbody>
             {filtered.map((c) => {
-              const isSelf = currentCaregiverId && String(currentCaregiverId) === String(c._id);
+              const isSelf = currentStaffId && String(currentStaffId) === String(c._id);
               const active = c.isActive !== false;
               const pending = pendingById[c._id]?.action;
 
@@ -400,7 +400,7 @@ export default function UserManagementTable() {
                     {c.role === "admin" ? (
                       <span style={badgeStyle("#e7f1ff", "#0b5ed7")}>admin</span>
                     ) : (
-                      <span style={badgeStyle("#f1f3f5", "#343a40")}>caregiver</span>
+                      <span style={badgeStyle("#f1f3f5", "#343a40")}>staff</span>
                     )}
                   </td>
                   <td>
@@ -440,7 +440,7 @@ export default function UserManagementTable() {
                         cursor: !active || isSelf || pending ? "not-allowed" : "pointer",
                         opacity: c.role !== "admin" ? 0.55 : 1,
                       }}
-                      title={c.role !== "admin" ? "Not an admin" : "Demote to caregiver"}
+                      title={c.role !== "admin" ? "Not an admin" : "Demote to staff"}
                     >
                       {pending === "demote" ? "Demoting..." : "Demote"}
                     </button>

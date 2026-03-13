@@ -213,7 +213,7 @@ const CaregiverDashboard = () => {
         padding: "20px",
       }}
     >
-      <Header title="Caregiver Dashboard" />
+      <Header title="Staff Dashboard" />
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <div
           style={{
@@ -224,7 +224,7 @@ const CaregiverDashboard = () => {
           }}
         >
           <div>
-            <h1>Caregiver Dashboard</h1>
+            <h1>Staff Dashboard</h1>
             {user?.primaryEmailAddress?.emailAddress && (
               <p>
                 Welcome, <strong>{user.primaryEmailAddress.emailAddress}</strong>
@@ -969,7 +969,7 @@ const CaregiverDashboard = () => {
       if (storedUser) {
         try {
           const parsed = JSON.parse(storedUser);
-          setUserInfo(parsed.caregiver || null);
+          setUserInfo(parsed.staff || parsed.caregiver || null);
         } catch (e) {
           console.warn("Could not parse user info");
         }
@@ -1030,11 +1030,11 @@ const CaregiverDashboard = () => {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f5f5f5", padding: "20px" }}>
-      <Header title="Caregiver Dashboard" />
+      <Header title="Staff Dashboard" />
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div>
-            <h1>Caregiver Dashboard</h1>
+            <h1>Staff Dashboard</h1>
             {userInfo && <p>Welcome, <strong>{userInfo.email}</strong></p>}
           </div>
           <button onClick={logout} style={{ background: "#dc3545", color: "white", border: "none", padding: "10px 20px", borderRadius: "5px" }}>

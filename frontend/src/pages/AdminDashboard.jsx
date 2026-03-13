@@ -299,22 +299,22 @@ const AdminDashboard = () => {
     const totalsMap = {};
 
     logsData.forEach((log) => {
-      if (!log.punchIn || !log.punchOut || !log.caregiver?._id) return;
+      if (!log.punchIn || !log.punchOut || !log.staff?._id) return;
 
       const hours =
         (new Date(log.punchOut) - new Date(log.punchIn)) /
         (1000 * 60 * 60);
 
-      const caregiverId = log.caregiver._id;
+      const staffId = log.staff._id;
 
-      if (!totalsMap[caregiverId]) {
-        totalsMap[caregiverId] = {
-          caregiver: log.caregiver,
+      if (!totalsMap[staffId]) {
+        totalsMap[staffId] = {
+          staff: log.staff,
           totalHours: 0,
         };
       }
 
-      totalsMap[caregiverId].totalHours += hours;
+      totalsMap[staffId].totalHours += hours;
     });
 
     return Object.values(totalsMap);
@@ -530,7 +530,7 @@ const AdminDashboard = () => {
             </button>
 
             <button
-              onClick={() => navigate("/caregiver")}
+              onClick={() => navigate("/staff")}
               style={{
                 padding: "8px 16px",
                 marginRight: "10px",
@@ -540,7 +540,7 @@ const AdminDashboard = () => {
                 borderRadius: "4px",
               }}
             >
-              Switch to Caregiver View
+              Switch to Staff View
             </button>
 
             <button
@@ -589,7 +589,7 @@ const AdminDashboard = () => {
             <table width="100%" cellPadding="8">
               <thead>
                 <tr>
-                  <th align="left">Caregiver</th>
+                  <th align="left">Staff</th>
                   <th align="left">Email</th>
                   <th align="left">Punch In</th>
                   <th align="left">Punch Out</th>
@@ -608,10 +608,10 @@ const AdminDashboard = () => {
                   return (
                     <tr key={log._id}>
                       <td>
-                        {log.caregiver?.firstName}{" "}
-                        {log.caregiver?.lastName}
+                        {log.staff?.firstName}{" "}
+                        {log.staff?.lastName}
                       </td>
-                      <td>{log.caregiver?.email}</td>
+                      <td>{log.staff?.email}</td>
                       <td>{formatDateTime(log.punchIn)}</td>
                       <td>{formatDateTime(log.punchOut)}</td>
                       <td align="right">
@@ -676,7 +676,7 @@ const AdminDashboard = () => {
             <table width="100%" cellPadding="8" style={{ marginTop: 12 }}>
               <thead>
                 <tr>
-                  <th align="left">Caregiver</th>
+                  <th align="left">Staff</th>
                   <th align="left">Email</th>
                   <th align="left">Shift Punch In</th>
                   <th align="left">Requested Punch Out</th>
@@ -688,9 +688,9 @@ const AdminDashboard = () => {
                 {missedPunchRequests.map((r) => (
                   <tr key={r._id}>
                     <td>
-                      {r.caregiver?.firstName} {r.caregiver?.lastName}
+                      {r.staff?.firstName} {r.staff?.lastName}
                     </td>
-                    <td>{r.caregiver?.email}</td>
+                    <td>{r.staff?.email}</td>
                     <td>
                       {r.timeEntry?.punchIn
                         ? new Date(r.timeEntry.punchIn).toLocaleString()
@@ -748,16 +748,16 @@ const AdminDashboard = () => {
             borderRadius: "8px",
           }}
         >
-          <h2>📊 Total Hours per Caregiver</h2>
+          <h2>📊 Total Hours per Staff Member</h2>
 
           {totals.length === 0 ? (
             <p>No completed shifts.</p>
           ) : (
             <ul>
               {totals.map((item) => (
-                <li key={item.caregiver._id}>
-                  {item.caregiver.firstName}{" "}
-                  {item.caregiver.lastName}:{" "}
+                <li key={item.staff._id}>
+                  {item.staff.firstName}{" "}
+                  {item.staff.lastName}:{" "}
                   <strong>
                     {item.totalHours.toFixed(2)} hrs
                   </strong>

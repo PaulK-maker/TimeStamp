@@ -16,27 +16,29 @@ const LoginPage = () => {
       const res = await api.post("/auth/login", { email, password });
       console.log("LOGIN RESPONSE:", res.data);
 
-      // Backend returns { message, token, caregiver }
-      const { token, caregiver } = res.data;
+      // Backend returns { message, token, staff }
+      const { token, staff } = res.data;
 
-      if (!token || !caregiver?.role) {
+      if (!token || !staff?.role) {
         throw new Error("Invalid login response");
       }
 
       // Save auth data
       localStorage.setItem("token", token);
-      localStorage.setItem("role", caregiver.role);
-      localStorage.setItem("user", JSON.stringify({ caregiver }));
+      localStorage.setItem("role", staff.role);
+      localStorage.setItem("user", JSON.stringify({ staff }));
+      localStorage.setItem("staff", JSON.stringify(staff));
 
       // Role-based redirect
-      if (caregiver.role === "admin") {
+      if (staff.role === "admin") {
         navigate("/admin");
-      } else if (caregiver.role === "caregiver") {
-        navigate("/caregiver");
+      } else if (staff.role === "staff") {
+        navigate("/staff");
       } else {
         localStorage.removeItem("token");
         localStorage.removeItem("role");
         localStorage.removeItem("user");
+        localStorage.removeItem("staff");
         setError("Unknown role");
       }
     } catch (err) {

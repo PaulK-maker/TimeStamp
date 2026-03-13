@@ -1,7 +1,7 @@
 // scripts/clearClerkId.js
 require("dotenv").config({ path: "./.env" });
 const mongoose = require("mongoose");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 
 (async () => {
   try {
@@ -12,7 +12,7 @@ const Caregiver = require("../models/caregiver");
       throw new Error("Missing email arg");
     }
 
-    const r = await Caregiver.updateOne(
+    const r = await Staff.updateOne(
       { email },
       { $unset: { clerkUserId: 1 } }
     );

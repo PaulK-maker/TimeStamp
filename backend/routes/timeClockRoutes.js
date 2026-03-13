@@ -42,9 +42,9 @@ router.get("/my-logs", protect, getMyTimeEntries);
 router.get("/mylogs", protect, getMyTimeEntries);
 
 // existing admin endpoints (optional)
-router.get("/:caregiverId", protect, authorizeRoles("admin"), getTimeEntries);
+router.get("/:staffId", protect, authorizeRoles("admin"), getTimeEntries);
 router.get(
-  "/:caregiverId/total-hours",
+  "/:staffId/total-hours",
   protect,
   authorizeRoles("admin"),
   getTotalHours

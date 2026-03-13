@@ -14,9 +14,9 @@ const timeEntryCorrectionSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    caregiver: {
+    staff: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       required: true,
       index: true,
     },
@@ -35,7 +35,7 @@ const timeEntryCorrectionSchema = new mongoose.Schema(
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       default: null,
     },
   },

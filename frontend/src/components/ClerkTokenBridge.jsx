@@ -18,6 +18,7 @@ export default function ClerkTokenBridge() {
 			localStorage.removeItem("role");
 			localStorage.removeItem("user");
 			localStorage.removeItem("caregiver");
+			localStorage.removeItem("staff");
 		}
 
 		return () => setAuthTokenProvider(null);

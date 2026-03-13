@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Tenant = require("../models/Tenant");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 
 function normalizeTenantCode(value) {
   return (value || "")
@@ -10,15 +10,15 @@ function normalizeTenantCode(value) {
     .replace(/[^0-9A-Z]/g, "");
 }
 
-async function loadCurrentCaregiver(req) {
+async function loadCurrentStaff(req) {
   const id = req.user?.id;
   if (id && mongoose.Types.ObjectId.isValid(id)) {
-    return Caregiver.findById(id);
+    return Staff.findById(id);
   }
 
   const clerkUserId = req.user?.clerkUserId;
   if (clerkUserId) {
-    return Caregiver.findOne({ clerkUserId });
+    return Staff.findOne({ clerkUserId });
   }
 
   return null;
@@ -39,13 +39,13 @@ function serializeTenant(tenant) {
 // Admin-only. If the current admin has no tenantId, create one and bind them to it.
 exports.bootstrapTenant = async (req, res) => {
   try {
-    const caregiver = await loadCurrentCaregiver(req);
-    if (!caregiver) {
+    const staffMember = await loadCurrentStaff(req);
+    if (!staffMember) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (caregiver.tenantId) {
-      const existing = await Tenant.findById(caregiver.tenantId);
+    if (staffMember.tenantId) {
+      const existing = await Tenant.findById(staffMember.tenantId);
       return res.json({
         message: "Tenant already assigned",
         tenant: serializeTenant(existing),
@@ -60,10 +60,10 @@ exports.bootstrapTenant = async (req, res) => {
       planSelected: false,
     });
 
-    // Bind caregiver to tenant, but only if still unassigned (prevents race/overwrites).
-    const bound = await Caregiver.findOneAndUpdate(
+    // Bind staff member to tenant, but only if still unassigned (prevents race/overwrites).
+    const bound = await Staff.findOneAndUpdate(
       {
-        _id: caregiver._id,
+        _id: staffMember._id,
         $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
       },
       { $set: { tenantId: tenant._id } },
@@ -73,7 +73,7 @@ exports.bootstrapTenant = async (req, res) => {
     if (!bound) {
       // Someone else assigned it; return the newly created tenant anyway (it exists).
       return res.status(409).json({
-        message: "Tenant assignment race: caregiver is no longer unassigned",
+        message: "Tenant assignment race: staff member is no longer unassigned",
         code: "TENANT_ALREADY_ASSIGNED",
         tenant: serializeTenant(tenant),
       });

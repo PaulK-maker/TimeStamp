@@ -14,26 +14,24 @@ const CaregiverLoginPage = () => {
 
     try {
       const res = await api.post("/auth/login", { email, password });
-      console.log("CAREGIVER LOGIN RESPONSE:", res.data);
+      console.log("STAFF LOGIN RESPONSE:", res.data);
 
-      const { token, caregiver } = res.data;
+      const { token, staff } = res.data;
 
       if (!token) throw new Error("No token returned from server");
 
-      // Save token (caregiver token is fine)
+      // Save token
       localStorage.setItem("token", token);
 
       // Keep auth storage consistent across the app
-      localStorage.setItem("role", caregiver?.role || "caregiver");
-      localStorage.setItem("user", JSON.stringify({ caregiver }));
+      localStorage.setItem("role", staff?.role || "staff");
+      localStorage.setItem("user", JSON.stringify({ staff }));
 
-      // Optionally store caregiver info too
-      localStorage.setItem("caregiver", JSON.stringify(caregiver));
+      localStorage.setItem("staff", JSON.stringify(staff));
 
-      // Navigate to caregiver dashboard / punch page
-      navigate("/caregiver");
+      navigate("/staff");
     } catch (err) {
-      console.error("CAREGIVER LOGIN ERROR:", err);
+      console.error("STAFF LOGIN ERROR:", err);
       setError(
         err.response?.data?.message || err.message || "Login failed"
       );
@@ -49,7 +47,7 @@ const CaregiverLoginPage = () => {
         alignItems: "center",
       }}
     >
-      <h1>CAREGIVER LOGIN</h1>
+      <h1>STAFF LOGIN</h1>
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       <form

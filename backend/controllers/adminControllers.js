@@ -1,5 +1,5 @@
 const TimeEntry = require("../models/TimeEntry");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
 function normalizeEmail(email) {
@@ -10,25 +10,25 @@ function isSameId(a, b) {
   return String(a || "") === String(b || "");
 }
 
-async function resolveCaregiver({ tenantId, caregiverId, email }) {
+async function resolveStaff({ tenantId, staffId, email }) {
   const normalizedEmail = normalizeEmail(email);
 
-  if (caregiverId) {
-    const byId = await Caregiver.findOne({ _id: caregiverId, tenantId });
+  if (staffId) {
+    const byId = await Staff.findOne({ _id: staffId, tenantId });
     if (byId) return byId;
   }
 
   if (normalizedEmail) {
-    const byEmail = await Caregiver.findOne({ email: normalizedEmail, tenantId });
+    const byEmail = await Staff.findOne({ email: normalizedEmail, tenantId });
     if (byEmail) return byEmail;
   }
 
   return null;
 }
 
-async function ensureNotLastAdmin(caregiver, tenantId) {
-  if (!caregiver || caregiver.role !== "admin") return;
-  const adminCount = await Caregiver.countDocuments({
+async function ensureNotLastAdmin(staffMember, tenantId) {
+  if (!staffMember || staffMember.role !== "admin") return;
+  const adminCount = await Staff.countDocuments({
     role: "admin",
     isActive: true,
     tenantId,
@@ -44,12 +44,12 @@ async function ensureNotLastAdmin(caregiver, tenantId) {
  * GET /api/admin/timelogs
  * Admin-only: Get all time entries
  * Optional query params:
- *   caregiverId - filter by caregiver
+ *   staffId - filter by staff member
  *   startDate / endDate - filter by date range
  */
 exports.getAllTimeLogs = async (req, res) => {
   try {
-    const { caregiverId, startDate, endDate } = req.query;
+    const { staffId, startDate, endDate } = req.query;
 
     const adminTenantId = req.user?.tenantId;
     if (!adminTenantId) {
@@ -61,20 +61,20 @@ exports.getAllTimeLogs = async (req, res) => {
 
     let query = { tenantId: adminTenantId };
 
-    if (caregiverId) {
-      const caregiver = await Caregiver.findOne({
-        _id: caregiverId,
+    if (staffId) {
+      const staffMember = await Staff.findOne({
+        _id: staffId,
         tenantId: adminTenantId,
       }).select("_id");
 
-      if (!caregiver) {
+      if (!staffMember) {
         return res.status(403).json({
           message: "Access denied: cross-tenant access blocked",
           code: "CROSS_TENANT_BLOCKED",
         });
       }
 
-      query.caregiver = caregiverId;
+      query.staff = staffId;
     }
 
     if (startDate || endDate) {
@@ -84,7 +84,7 @@ exports.getAllTimeLogs = async (req, res) => {
     }
 
     const logs = await TimeEntry.find(query)
-      .populate("caregiver", "firstName lastName email role")
+      .populate("staff", "firstName lastName email role")
       .sort({ punchIn: -1 });
 
     const entryIds = logs.map((l) => l._id);
@@ -121,10 +121,10 @@ exports.getAllTimeLogs = async (req, res) => {
 
 /**
  * POST /api/admin/promote
- * Admin-only: Promote an existing caregiver to admin by email.
+ * Admin-only: Promote an existing staff member to admin by email.
  * Body: { email: string }
  */
-exports.promoteCaregiverToAdmin = async (req, res) => {
+exports.promoteStaffToAdmin = async (req, res) => {
   try {
     const adminTenantId = req.user?.tenantId;
     if (!adminTenantId) {
@@ -134,55 +134,55 @@ exports.promoteCaregiverToAdmin = async (req, res) => {
       });
     }
 
-    const caregiverId = (req.body?.caregiverId || "").trim();
+    const staffId = (req.body?.staffId || "").trim();
     const email = normalizeEmail(req.body?.email);
 
-    if (!caregiverId && !email) {
-      return res.status(400).json({ message: "caregiverId or email is required" });
+    if (!staffId && !email) {
+      return res.status(400).json({ message: "staffId or email is required" });
     }
 
-    const caregiver = await resolveCaregiver({
+    const staffMember = await resolveStaff({
       tenantId: adminTenantId,
-      caregiverId,
+      staffId,
       email,
     });
-    if (!caregiver) {
-      return res.status(404).json({ message: "Caregiver not found" });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
     }
 
-    if (!caregiver.isActive) {
+    if (!staffMember.isActive) {
       return res.status(400).json({ message: "Cannot promote an inactive user" });
     }
 
     // Option A: Clerk publicMetadata.role is the source of truth.
-    // If this caregiver is linked to Clerk, update Clerk metadata too.
-    if (process.env.CLERK_SECRET_KEY && caregiver.clerkUserId) {
+    // If this staff member is linked to Clerk, update Clerk metadata too.
+    if (process.env.CLERK_SECRET_KEY && staffMember.clerkUserId) {
       try {
         const { clerkClient } = require("@clerk/express");
-        await clerkClient.users.updateUserMetadata(caregiver.clerkUserId, {
+        await clerkClient.users.updateUserMetadata(staffMember.clerkUserId, {
           publicMetadata: { role: "admin" },
         });
       } catch (e) {
         console.warn("Failed to update Clerk user metadata for promotion", {
-          clerkUserId: caregiver.clerkUserId,
-          email: caregiver.email,
+          clerkUserId: staffMember.clerkUserId,
+          email: staffMember.email,
           error: e?.message || String(e),
         });
       }
     }
 
-    if (caregiver.role !== "admin") {
-      caregiver.role = "admin";
-      await caregiver.save();
+    if (staffMember.role !== "admin") {
+      staffMember.role = "admin";
+      await staffMember.save();
     }
 
     return res.json({
-      message: "Caregiver promoted to admin",
-      caregiver: {
-        id: caregiver._id.toString(),
-        email: caregiver.email,
-        role: caregiver.role,
-        isActive: caregiver.isActive,
+      message: "Staff member promoted to admin",
+      staff: {
+        id: staffMember._id.toString(),
+        email: staffMember.email,
+        role: staffMember.role,
+        isActive: staffMember.isActive,
       },
     });
   } catch (error) {
@@ -193,10 +193,10 @@ exports.promoteCaregiverToAdmin = async (req, res) => {
 
 /**
  * POST /api/admin/demote
- * Admin-only: Demote an existing admin back to caregiver.
- * Body: { caregiverId?: string, email?: string }
+ * Admin-only: Demote an existing admin back to staff.
+ * Body: { staffId?: string, email?: string }
  */
-exports.demoteAdminToCaregiver = async (req, res) => {
+exports.demoteAdminToStaff = async (req, res) => {
   try {
     const adminTenantId = req.user?.tenantId;
     if (!adminTenantId) {
@@ -206,64 +206,64 @@ exports.demoteAdminToCaregiver = async (req, res) => {
       });
     }
 
-    const caregiverId = (req.body?.caregiverId || "").trim();
+    const staffId = (req.body?.staffId || "").trim();
     const email = normalizeEmail(req.body?.email);
 
-    if (!caregiverId && !email) {
-      return res.status(400).json({ message: "caregiverId or email is required" });
+    if (!staffId && !email) {
+      return res.status(400).json({ message: "staffId or email is required" });
     }
 
-    const caregiver = await resolveCaregiver({
+    const staffMember = await resolveStaff({
       tenantId: adminTenantId,
-      caregiverId,
+      staffId,
       email,
     });
-    if (!caregiver) {
-      return res.status(404).json({ message: "Caregiver not found" });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
     }
 
     // Prevent self-demotion (lockout protection)
-    if (isSameId(caregiver._id, req.user?.caregiverId || req.user?.id)) {
+    if (isSameId(staffMember._id, req.user?.staffId || req.user?.id)) {
       return res.status(400).json({ message: "You cannot demote your own account" });
     }
 
-    if (!caregiver.isActive) {
+    if (!staffMember.isActive) {
       return res.status(400).json({ message: "Cannot demote an inactive user" });
     }
 
-    if (caregiver.role !== "admin") {
+    if (staffMember.role !== "admin") {
       return res.status(400).json({ message: "User is not an admin" });
     }
 
-    await ensureNotLastAdmin(caregiver, adminTenantId);
+    await ensureNotLastAdmin(staffMember, adminTenantId);
 
-    if (process.env.CLERK_SECRET_KEY && caregiver.clerkUserId) {
+    if (process.env.CLERK_SECRET_KEY && staffMember.clerkUserId) {
       try {
         const { clerkClient } = require("@clerk/express");
-        await clerkClient.users.updateUserMetadata(caregiver.clerkUserId, {
-          publicMetadata: { role: "caregiver" },
+        await clerkClient.users.updateUserMetadata(staffMember.clerkUserId, {
+          publicMetadata: { role: "staff" },
         });
       } catch (e) {
         console.warn("Failed to update Clerk user metadata for demotion", {
-          clerkUserId: caregiver.clerkUserId,
-          email: caregiver.email,
+          clerkUserId: staffMember.clerkUserId,
+          email: staffMember.email,
           error: e?.message || String(e),
         });
       }
     }
 
-    if (caregiver.role !== "caregiver") {
-      caregiver.role = "caregiver";
-      await caregiver.save();
+    if (staffMember.role !== "staff") {
+      staffMember.role = "staff";
+      await staffMember.save();
     }
 
     return res.json({
-      message: "Admin demoted to caregiver",
-      caregiver: {
-        id: caregiver._id.toString(),
-        email: caregiver.email,
-        role: caregiver.role,
-        isActive: caregiver.isActive,
+      message: "Admin demoted to staff",
+      staff: {
+        id: staffMember._id.toString(),
+        email: staffMember.email,
+        role: staffMember.role,
+        isActive: staffMember.isActive,
       },
     });
   } catch (error) {
@@ -274,10 +274,10 @@ exports.demoteAdminToCaregiver = async (req, res) => {
 };
 
 /**
- * DELETE /api/admin/users/:caregiverId
+ * DELETE /api/admin/users/:staffId
  * Admin-only: Deprovision a user.
  * - Deletes the user in Clerk (if linked).
- * - Marks local Caregiver record as inactive (keeps TimeEntry history intact).
+ * - Marks the local staff record as inactive (keeps TimeEntry history intact).
  */
 exports.deleteUser = async (req, res) => {
   try {
@@ -289,34 +289,34 @@ exports.deleteUser = async (req, res) => {
       });
     }
 
-    const caregiverId = (req.params?.caregiverId || "").trim();
-    if (!caregiverId) {
-      return res.status(400).json({ message: "caregiverId is required" });
+    const staffId = (req.params?.staffId || "").trim();
+    if (!staffId) {
+      return res.status(400).json({ message: "staffId is required" });
     }
 
-    const caregiver = await Caregiver.findOne({
-      _id: caregiverId,
+    const staffMember = await Staff.findOne({
+      _id: staffId,
       tenantId: adminTenantId,
     });
-    if (!caregiver) {
-      return res.status(404).json({ message: "Caregiver not found" });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
     }
 
     // Prevent self-delete (lockout protection)
-    if (isSameId(caregiver._id, req.user?.caregiverId || req.user?.id)) {
+    if (isSameId(staffMember._id, req.user?.staffId || req.user?.id)) {
       return res.status(400).json({ message: "You cannot delete your own account" });
     }
 
     // If deleting an active admin, ensure at least one active admin remains.
-    if (caregiver.isActive) {
-      await ensureNotLastAdmin(caregiver, adminTenantId);
+    if (staffMember.isActive) {
+      await ensureNotLastAdmin(staffMember, adminTenantId);
     }
 
     // 1) Delete from Clerk (source of login)
-    if (process.env.CLERK_SECRET_KEY && caregiver.clerkUserId) {
+    if (process.env.CLERK_SECRET_KEY && staffMember.clerkUserId) {
       try {
         const { clerkClient } = require("@clerk/express");
-        await clerkClient.users.deleteUser(caregiver.clerkUserId);
+        await clerkClient.users.deleteUser(staffMember.clerkUserId);
       } catch (e) {
         // If the Clerk user is already gone, continue. Otherwise, fail fast.
         const message = e?.message || String(e);
@@ -332,17 +332,17 @@ exports.deleteUser = async (req, res) => {
     }
 
     // 2) Soft-delete locally to preserve time logs
-    caregiver.isActive = false;
-    caregiver.role = "caregiver";
-    await caregiver.save();
+    staffMember.isActive = false;
+    staffMember.role = "staff";
+    await staffMember.save();
 
     return res.json({
       message: "User deleted",
-      caregiver: {
-        id: caregiver._id.toString(),
-        email: caregiver.email,
-        role: caregiver.role,
-        isActive: caregiver.isActive,
+      staff: {
+        id: staffMember._id.toString(),
+        email: staffMember.email,
+        role: staffMember.role,
+        isActive: staffMember.isActive,
       },
     });
   } catch (error) {

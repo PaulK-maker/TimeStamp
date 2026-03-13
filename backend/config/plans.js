@@ -3,7 +3,7 @@ const PLANS = {
     id: "free_1",
     name: "Free",
     priceUsdMonthly: 0,
-    maxCaregivers: 1,
+    maxStaff: 1,
     features: {
       viewLogs: true,
       dataManagement: false,
@@ -15,7 +15,7 @@ const PLANS = {
     id: "standard_10",
     name: "Standard",
     priceUsdMonthly: 10,
-    maxCaregivers: 10,
+    maxStaff: 10,
     features: {
       viewLogs: true,
       dataManagement: true,
@@ -27,7 +27,7 @@ const PLANS = {
     id: "pro_25",
     name: "Pro",
     priceUsdMonthly: 15,
-    maxCaregivers: 25,
+    maxStaff: 25,
     features: {
       viewLogs: true,
       dataManagement: true,

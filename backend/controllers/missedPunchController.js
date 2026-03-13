@@ -1,19 +1,19 @@
 const mongoose = require("mongoose");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const TimeEntry = require("../models/TimeEntry");
 const MissedPunchRequest = require("../models/MissedPunchRequest");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
-async function resolveCaregiverObjectId(req) {
-  const candidate = req.user?.caregiverId || req.user?.id;
+async function resolveStaffObjectId(req) {
+  const candidate = req.user?.staffId || req.user?.id;
   if (!candidate) return null;
 
   if (mongoose.Types.ObjectId.isValid(candidate)) return candidate;
 
-  const caregiver = await Caregiver.findOne({ clerkUserId: candidate }).select(
+  const staffMember = await Staff.findOne({ clerkUserId: candidate }).select(
     "_id"
   );
-  return caregiver?._id?.toString() || null;
+  return staffMember?._id?.toString() || null;
 }
 
 function parseDate(value) {
@@ -25,8 +25,8 @@ function parseDate(value) {
 // POST /api/missed-punch/requests
 exports.createMissedPunchRequest = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -71,7 +71,7 @@ exports.createMissedPunchRequest = async (req, res) => {
     const entry = await TimeEntry.findOne({
       _id: timeEntryId,
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
     });
 
     if (!entry) {
@@ -99,7 +99,7 @@ exports.createMissedPunchRequest = async (req, res) => {
 
     const existingPending = await MissedPunchRequest.findOne({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
       timeEntry: entry._id,
       missingField,
       status: "pending",
@@ -114,7 +114,7 @@ exports.createMissedPunchRequest = async (req, res) => {
 
     const request = await MissedPunchRequest.create({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
       timeEntry: entry._id,
       missingField,
       requestedTime,
@@ -132,8 +132,8 @@ exports.createMissedPunchRequest = async (req, res) => {
 // GET /api/missed-punch/requests/mine
 exports.getMyMissedPunchRequests = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -147,7 +147,7 @@ exports.getMyMissedPunchRequests = async (req, res) => {
 
     const requests = await MissedPunchRequest.find({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
     })
       .populate({
         path: "timeEntry",
@@ -165,8 +165,8 @@ exports.getMyMissedPunchRequests = async (req, res) => {
 // POST /api/missed-punch/requests/:id/cancel
 exports.cancelMyMissedPunchRequest = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -186,7 +186,7 @@ exports.cancelMyMissedPunchRequest = async (req, res) => {
     const request = await MissedPunchRequest.findOne({
       _id: requestId,
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
     });
 
     if (!request) {
@@ -232,7 +232,7 @@ exports.adminListMissedPunchRequests = async (req, res) => {
 
     const requests = await MissedPunchRequest.find(query)
       .populate({
-        path: "caregiver",
+        path: "staff",
         select: "firstName lastName email",
       })
       .populate({
@@ -283,7 +283,7 @@ exports.adminApproveMissedPunchRequest = async (req, res) => {
       request.status = "rejected";
       request.adminNote = "Time entry no longer exists";
       request.reviewedAt = new Date();
-      request.reviewedBy = req.user?.caregiverId || req.user?.id || null;
+      request.reviewedBy = req.user?.staffId || req.user?.id || null;
       await request.save();
       return res.status(404).json({ message: "Time entry not found" });
     }
@@ -300,8 +300,8 @@ exports.adminApproveMissedPunchRequest = async (req, res) => {
     }
 
     const approvedBy =
-      mongoose.Types.ObjectId.isValid(req.user?.caregiverId || req.user?.id)
-        ? req.user?.caregiverId || req.user?.id
+      mongoose.Types.ObjectId.isValid(req.user?.staffId || req.user?.id)
+        ? req.user?.staffId || req.user?.id
         : null;
 
     const correction = await TimeEntryCorrection.findOneAndUpdate(
@@ -309,7 +309,7 @@ exports.adminApproveMissedPunchRequest = async (req, res) => {
       {
         $set: {
           tenantId: adminTenantId,
-          caregiver: entry.caregiver,
+          staff: entry.staff,
           effectivePunchOut: request.requestedTime,
           sourceRequest: request._id,
           approvedBy,
@@ -362,8 +362,8 @@ exports.adminRejectMissedPunchRequest = async (req, res) => {
     }
 
     const reviewedBy =
-      mongoose.Types.ObjectId.isValid(req.user?.caregiverId || req.user?.id)
-        ? req.user?.caregiverId || req.user?.id
+      mongoose.Types.ObjectId.isValid(req.user?.staffId || req.user?.id)
+        ? req.user?.staffId || req.user?.id
         : null;
 
     request.status = "rejected";

@@ -3,7 +3,7 @@ const path = require("path");
 
 // Always load env from backend/.env, regardless of the process working directory.
 require("dotenv").config({ path: path.join(__dirname, ".env") });
-const Caregiver = require("./models/caregiver");
+const Staff = require("./models/staff");
 const connectDB = require("./config/db");
 
 function normalizeEmail(value) {

@@ -8,9 +8,9 @@ const timeEntrySchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-    caregiver: {
+    staff: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       required: true,
     },
     punchIn: {

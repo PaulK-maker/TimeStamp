@@ -69,9 +69,9 @@ const tenantOtpSchema = new mongoose.Schema(
       default: null,
     },
 
-    createdByCaregiverId: {
+    createdByStaffId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Caregiver",
+      ref: "Staff",
       default: null,
       index: true,
     },

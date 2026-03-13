@@ -44,7 +44,7 @@
 const express = require("express");
 const router = express.Router();
 const { register, login } = require("../controllers/authController");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const Tenant = require("../models/Tenant");
 const requireAuth = require("../middleware/authMiddleware");
 
@@ -97,13 +97,12 @@ router.get("/create-admin-once", async (req, res) => {
     const email = "admin@example.com";
 
     // check if already exists
-    let caregiver = await Caregiver.findOne({ email });
-    if (caregiver) {
+    let staffMember = await Staff.findOne({ email });
+    if (staffMember) {
       return res.json({ message: "Admin already exists", email });
     }
 
-    // Caregiver model's pre('save') hook will hash this password
-    caregiver = await Caregiver.create({
+    staffMember = await Staff.create({
       firstName: "Admin",
       lastName: "User",
       email,
@@ -113,8 +112,8 @@ router.get("/create-admin-once", async (req, res) => {
 
     res.json({
       message: "Admin created",
-      email: caregiver.email,
-      role: caregiver.role,
+      email: staffMember.email,
+      role: staffMember.role,
     });
   } catch (err) {
     console.error(err);

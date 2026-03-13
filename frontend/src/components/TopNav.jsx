@@ -50,7 +50,7 @@ export default function TopNav() {
           </NavLink>
 
           <NavLink
-            to="/caregiver"
+            to="/staff"
             className={({ isActive }) =>
               `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
             }

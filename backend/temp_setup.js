@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
-const Caregiver = require('./models/caregiver');
+const Staff = require('./models/staff');
 require('dotenv').config();
 
 async function setup() {
     try {
         await mongoose.connect(process.env.MONGO_URI);
         const email = 'admin@example.com';
-        await Caregiver.deleteOne({ email });
-        const admin = new Caregiver({
+        await Staff.deleteOne({ email });
+        const admin = new Staff({
             firstName: 'Admin',
             lastName: 'User',
             email: email,

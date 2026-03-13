@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Tenant = require("../models/Tenant");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const TenantOtp = require("../models/TenantOtp");
 const { isMailerConfigured, sendMail } = require("../utils/mailer");
 
@@ -49,15 +49,15 @@ function generateSixDigitCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
 }
 
-async function loadCurrentCaregiver(req) {
+async function loadCurrentStaff(req) {
   const id = req.user?.id;
   if (id && mongoose.Types.ObjectId.isValid(id)) {
-    return Caregiver.findById(id);
+    return Staff.findById(id);
   }
 
   const clerkUserId = req.user?.clerkUserId;
   if (clerkUserId) {
-    return Caregiver.findOne({ clerkUserId });
+    return Staff.findOne({ clerkUserId });
   }
 
   return null;
@@ -138,7 +138,7 @@ async function enforceSendThrottle({ purpose, email, tenantId }) {
   return last;
 }
 
-async function createFreshOtp({ purpose, email, tenantId, createdByCaregiverId }) {
+async function createFreshOtp({ purpose, email, tenantId, createdByStaffId }) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
   const code = generateSixDigitCode();
@@ -168,7 +168,7 @@ async function createFreshOtp({ purpose, email, tenantId, createdByCaregiverId }
     lastSentAt: now,
     verifyAttempts: 0,
     lockedUntil: null,
-    createdByCaregiverId: createdByCaregiverId || null,
+    createdByStaffId: createdByStaffId || null,
   });
 
   return { otp, code, expiresAt };
@@ -205,12 +205,12 @@ exports.sendJoinOtp = async (req, res) => {
       return res.status(throttle.status).json({ message: throttle.message, code: throttle.code });
     }
 
-    const caregiver = await loadCurrentCaregiver(req);
+    const staffMember = await loadCurrentStaff(req);
     const { code, expiresAt } = await createFreshOtp({
       purpose: "TENANT_JOIN_INVITE",
       email: toEmail,
       tenantId,
-      createdByCaregiverId: caregiver?._id,
+      createdByStaffId: staffMember?._id,
     });
 
     const subject = `Your TimeStamp invite code`;
@@ -239,19 +239,19 @@ exports.sendJoinOtp = async (req, res) => {
 // Signed-in user: redeem a one-time invite code to join a tenant.
 exports.redeemJoinOtp = async (req, res) => {
   try {
-    const caregiver = await loadCurrentCaregiver(req);
-    if (!caregiver) {
+    const staffMember = await loadCurrentStaff(req);
+    if (!staffMember) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (caregiver.tenantId) {
+    if (staffMember.tenantId) {
       return res.status(400).json({
         message: "Tenant is already assigned for this account.",
         code: "TENANT_ALREADY_ASSIGNED",
       });
     }
 
-    const email = normalizeEmail(req.user?.email || caregiver.email);
+    const email = normalizeEmail(req.user?.email || staffMember.email);
     if (!email) {
       return res.status(400).json({
         message: "Email is required for invite redemption.",
@@ -298,9 +298,9 @@ exports.redeemJoinOtp = async (req, res) => {
     }
 
     // Assign tenantId (one-time; prevents switching)
-    const updated = await Caregiver.findOneAndUpdate(
+    const updated = await Staff.findOneAndUpdate(
       {
-        _id: caregiver._id,
+        _id: staffMember._id,
         $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
       },
       { $set: { tenantId: otp.tenantId } },
@@ -332,19 +332,19 @@ exports.redeemJoinOtp = async (req, res) => {
 // Admin-only: send (or return) a one-time code to confirm facility creation.
 exports.sendBootstrapOtp = async (req, res) => {
   try {
-    const caregiver = await loadCurrentCaregiver(req);
-    if (!caregiver) {
+    const staffMember = await loadCurrentStaff(req);
+    if (!staffMember) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (caregiver.tenantId) {
+    if (staffMember.tenantId) {
       return res.status(400).json({
         message: "Tenant already assigned",
         code: "TENANT_ALREADY_ASSIGNED",
       });
     }
 
-    const toEmail = normalizeEmail(req.user?.email || caregiver.email);
+    const toEmail = normalizeEmail(req.user?.email || staffMember.email);
     if (!toEmail || !toEmail.includes("@")) {
       return res.status(400).json({ message: "A valid email is required for setup" });
     }
@@ -362,7 +362,7 @@ exports.sendBootstrapOtp = async (req, res) => {
       purpose: "TENANT_BOOTSTRAP_CONFIRM",
       email: toEmail,
       tenantId: null,
-      createdByCaregiverId: caregiver._id,
+      createdByStaffId: staffMember._id,
     });
 
     const subject = `Your TimeStamp setup code`;
@@ -390,19 +390,19 @@ exports.sendBootstrapOtp = async (req, res) => {
 // Admin-only: verify code, then create tenant and bind the admin.
 exports.verifyBootstrapOtp = async (req, res) => {
   try {
-    const caregiver = await loadCurrentCaregiver(req);
-    if (!caregiver) {
+    const staffMember = await loadCurrentStaff(req);
+    if (!staffMember) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (caregiver.tenantId) {
+    if (staffMember.tenantId) {
       return res.status(400).json({
         message: "Tenant already assigned",
         code: "TENANT_ALREADY_ASSIGNED",
       });
     }
 
-    const email = normalizeEmail(req.user?.email || caregiver.email);
+    const email = normalizeEmail(req.user?.email || staffMember.email);
     if (!email) {
       return res.status(400).json({ message: "Email is required for setup", code: "EMAIL_REQUIRED" });
     }
@@ -453,9 +453,9 @@ exports.verifyBootstrapOtp = async (req, res) => {
       planSelected: false,
     });
 
-    const bound = await Caregiver.findOneAndUpdate(
+    const bound = await Staff.findOneAndUpdate(
       {
-        _id: caregiver._id,
+        _id: staffMember._id,
         $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
       },
       { $set: { tenantId: tenant._id } },
@@ -464,7 +464,7 @@ exports.verifyBootstrapOtp = async (req, res) => {
 
     if (!bound) {
       return res.status(409).json({
-        message: "Tenant assignment race: caregiver is no longer unassigned",
+        message: "Tenant assignment race: staff member is no longer unassigned",
         code: "TENANT_ALREADY_ASSIGNED",
         tenant: serializeTenant(tenant),
       });

@@ -6,7 +6,7 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const Tenant = require("./models/Tenant");
-const Caregiver = require("./models/caregiver");
+const Staff = require("./models/staff");
 const TimeEntry = require("./models/TimeEntry");
 const MissedPunchRequest = require("./models/MissedPunchRequest");
 const TimeEntryCorrection = require("./models/TimeEntryCorrection");

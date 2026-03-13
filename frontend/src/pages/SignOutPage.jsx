@@ -14,6 +14,7 @@ export default function SignOutPage() {
         localStorage.removeItem("role");
         localStorage.removeItem("user");
         localStorage.removeItem("caregiver");
+        localStorage.removeItem("staff");
         await signOut();
       } finally {
         navigate("/sign-in", { replace: true });

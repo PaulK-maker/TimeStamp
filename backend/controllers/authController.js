@@ -1,5 +1,5 @@
 // backend/controllers/authController.js
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const TimeEntry = require("../models/TimeEntry");
@@ -15,7 +15,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "All fields required" });
     }
 
-    const existingUser = await Caregiver.findOne({ email });
+    const existingUser = await Staff.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "Email already registered" });
     }
@@ -23,7 +23,7 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const caregiver = await Caregiver.create({
+    const staffMember = await Staff.create({
       firstName,
       lastName,
       email,
@@ -32,11 +32,11 @@ exports.register = async (req, res) => {
     });
 
     res.status(201).json({
-      message: "Caregiver registered",
-      caregiver: {
-        id: caregiver._id,
-        role: caregiver.role,
-        email: caregiver.email,
+      message: "Staff member registered",
+      staff: {
+        id: staffMember._id,
+        role: staffMember.role,
+        email: staffMember.email,
       },
     });
   } catch (error) {
@@ -58,21 +58,21 @@ exports.login = async (req, res) => {
         .json({ message: "Email and password required" });
     }
 
-    // 2) Find caregiver and include password
-    const caregiver = await Caregiver.findOne({ email }).select("+password");
-    if (!caregiver) {
+    // 2) Find staff member and include password
+    const staffMember = await Staff.findOne({ email }).select("+password");
+    if (!staffMember) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // 3) Compare password with bcrypt
-    const isMatch = await bcrypt.compare(password, caregiver.password);
+    const isMatch = await bcrypt.compare(password, staffMember.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // 4) Sign JWT including role
     const token = jwt.sign(
-      { id: caregiver._id, role: caregiver.role },
+      { id: staffMember._id, role: staffMember.role },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -81,12 +81,12 @@ exports.login = async (req, res) => {
     res.json({
       message: "Login successful",
       token,
-      caregiver: {
-        id: caregiver._id,
-        firstName: caregiver.firstName,
-        lastName: caregiver.lastName,
-        email: caregiver.email,
-        role: caregiver.role,
+      staff: {
+        id: staffMember._id,
+        firstName: staffMember.firstName,
+        lastName: staffMember.lastName,
+        email: staffMember.email,
+        role: staffMember.role,
       },
     });
   } catch (error) {
@@ -99,21 +99,21 @@ exports.login = async (req, res) => {
  */
 exports.getAllTimeLogs = async (req, res) => {
   try {
-    const { caregiverId, startDate, endDate } = req.query;
+    const { staffId, startDate, endDate } = req.query;
     const filter = {};
 
-    if (caregiverId) filter.caregiver = caregiverId;
+    if (staffId) filter.staff = staffId;
     if (startDate || endDate) filter.createdAt = {};
     if (startDate) filter.createdAt.$gte = new Date(startDate);
     if (endDate) filter.createdAt.$lte = new Date(endDate);
 
     const logs = await TimeEntry.find(filter)
-      .populate("caregiver", "firstName lastName email")
+      .populate("staff", "firstName lastName email")
       .sort({ createdAt: -1 });
 
     const logsWithHours = logs.map((log) => ({
       id: log._id,
-      caregiver: log.caregiver,
+      staff: log.staff,
       punchIn: log.punchIn,
       punchOut: log.punchOut,
       totalHours:
@@ -123,21 +123,21 @@ exports.getAllTimeLogs = async (req, res) => {
       createdAt: log.createdAt,
     }));
 
-    const totalHoursPerCaregiver = {};
+    const totalHoursPerStaff = {};
     logsWithHours.forEach((log) => {
-      const id = log.caregiver._id.toString();
-      if (!totalHoursPerCaregiver[id]) {
-        totalHoursPerCaregiver[id] = {
-          caregiver: log.caregiver,
+      const id = log.staff._id.toString();
+      if (!totalHoursPerStaff[id]) {
+        totalHoursPerStaff[id] = {
+          staff: log.staff,
           totalHours: 0,
         };
       }
-      totalHoursPerCaregiver[id].totalHours += parseFloat(log.totalHours);
+      totalHoursPerStaff[id].totalHours += parseFloat(log.totalHours);
     });
 
-    const totalHoursArray = Object.values(totalHoursPerCaregiver).map(
+    const totalHoursArray = Object.values(totalHoursPerStaff).map(
       (item) => ({
-        caregiver: item.caregiver,
+        staff: item.staff,
         totalHours: parseFloat(item.totalHours.toFixed(2)),
       })
     );
@@ -145,7 +145,7 @@ exports.getAllTimeLogs = async (req, res) => {
     res.json({
       count: logsWithHours.length,
       logs: logsWithHours,
-      totalHoursPerCaregiver: totalHoursArray,
+      totalHoursPerStaff: totalHoursArray,
     });
   } catch (error) {
     console.error(error);

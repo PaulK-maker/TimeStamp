@@ -1,28 +1,28 @@
 const TimeEntry = require("../models/TimeEntry");
 const mongoose = require("mongoose");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
-const resolveCaregiverObjectId = async (req) => {
-  const candidate = req.user?.caregiverId || req.user?.id;
+const resolveStaffObjectId = async (req) => {
+  const candidate = req.user?.staffId || req.user?.id;
   if (!candidate) return null;
 
   if (mongoose.Types.ObjectId.isValid(candidate)) return candidate;
 
-  // Clerk user ids look like "user_..."; map them to a Caregiver record.
-  const caregiver = await Caregiver.findOne({ clerkUserId: candidate }).select(
+  // Clerk user ids look like "user_..."; map them to a Staff record.
+  const staffMember = await Staff.findOne({ clerkUserId: candidate }).select(
     "_id"
   );
-  return caregiver?._id?.toString() || null;
+  return staffMember?._id?.toString() || null;
 };
 
 // @desc   Punch IN
 // @route  POST /api/timeclock/punch-in
-// @access Private (caregiver)
+// @access Private (staff)
 const punchIn = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -38,19 +38,19 @@ const punchIn = async (req, res) => {
     // Check for active shift
     const activeShift = await TimeEntry.findOne({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
       punchOut: null,
     });
 
     if (activeShift) {
       return res.status(400).json({
-        message: "Caregiver already punched in",
+        message: "Staff member already punched in",
       });
     }
 
     const entry = await TimeEntry.create({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
       punchIn: new Date(),
       notes,
     });
@@ -64,11 +64,11 @@ const punchIn = async (req, res) => {
 
 // @desc   Punch OUT
 // @route  POST /api/timeclock/punch-out
-// @access Private (caregiver)
+// @access Private (staff)
 const punchOut = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -82,7 +82,7 @@ const punchOut = async (req, res) => {
 
     const activeShift = await TimeEntry.findOne({
       tenantId,
-      caregiver: caregiverId,
+      staff: staffId,
       punchOut: null,
     });
 
@@ -102,13 +102,13 @@ const punchOut = async (req, res) => {
   }
 };
 
-// @desc   Get caregiver time entries (for logged-in caregiver)
+// @desc   Get staff time entries (for the logged-in staff member)
 // @route  GET /api/timeclock/my-logs
-// @access Private (caregiver)
+// @access Private (staff)
 const getMyTimeEntries = async (req, res) => {
   try {
-    const caregiverId = await resolveCaregiverObjectId(req);
-    if (!caregiverId) {
+    const staffId = await resolveStaffObjectId(req);
+    if (!staffId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -120,7 +120,7 @@ const getMyTimeEntries = async (req, res) => {
       });
     }
 
-    const query = { tenantId, caregiver: caregiverId };
+    const query = { tenantId, staff: staffId };
 
     const entries = await TimeEntry.find(query).sort({ punchIn: -1 });
 
@@ -157,8 +157,8 @@ const getMyTimeEntries = async (req, res) => {
 };
 
 // Existing admin-style endpoints can stay if you still need them
-// @desc   Get time entries by caregiverId (admin)
-// @route  GET /api/timeclock/:caregiverId
+// @desc   Get time entries by staffId (admin)
+// @route  GET /api/timeclock/:staffId
 const getTimeEntries = async (req, res) => {
   try {
     const adminTenantId = req.user?.tenantId;
@@ -169,14 +169,14 @@ const getTimeEntries = async (req, res) => {
       });
     }
 
-    const caregiver = await Caregiver.findById(req.params.caregiverId).select(
+    const staffMember = await Staff.findById(req.params.staffId).select(
       "tenantId"
     );
-    if (!caregiver) {
-      return res.status(404).json({ message: "Caregiver not found" });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
     }
 
-    if (!caregiver.tenantId || String(caregiver.tenantId) !== String(adminTenantId)) {
+    if (!staffMember.tenantId || String(staffMember.tenantId) !== String(adminTenantId)) {
       return res.status(403).json({
         message: "Access denied: cross-tenant access blocked",
         code: "CROSS_TENANT_BLOCKED",
@@ -185,7 +185,7 @@ const getTimeEntries = async (req, res) => {
 
     const entries = await TimeEntry.find({
       tenantId: adminTenantId,
-      caregiver: req.params.caregiverId,
+      staff: req.params.staffId,
     }).sort({ punchIn: -1 });
 
     res.json(entries);
@@ -194,8 +194,8 @@ const getTimeEntries = async (req, res) => {
   }
 };
 
-// @desc   Get total hours worked for caregiver (admin)
-// @route  GET /api/timeclock/:caregiverId/total-hours
+// @desc   Get total hours worked for a staff member (admin)
+// @route  GET /api/timeclock/:staffId/total-hours
 const getTotalHours = async (req, res) => {
   try {
     const adminTenantId = req.user?.tenantId;
@@ -206,14 +206,14 @@ const getTotalHours = async (req, res) => {
       });
     }
 
-    const caregiver = await Caregiver.findById(req.params.caregiverId).select(
+    const staffMember = await Staff.findById(req.params.staffId).select(
       "tenantId"
     );
-    if (!caregiver) {
-      return res.status(404).json({ message: "Caregiver not found" });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
     }
 
-    if (!caregiver.tenantId || String(caregiver.tenantId) !== String(adminTenantId)) {
+    if (!staffMember.tenantId || String(staffMember.tenantId) !== String(adminTenantId)) {
       return res.status(403).json({
         message: "Access denied: cross-tenant access blocked",
         code: "CROSS_TENANT_BLOCKED",
@@ -222,7 +222,7 @@ const getTotalHours = async (req, res) => {
 
     const entries = await TimeEntry.find({
       tenantId: adminTenantId,
-      caregiver: req.params.caregiverId,
+      staff: req.params.staffId,
       punchOut: { $ne: null },
     });
 
@@ -236,7 +236,7 @@ const getTotalHours = async (req, res) => {
     const totalHours = totalMilliseconds / (1000 * 60 * 60);
 
     res.json({
-      caregiverId: req.params.caregiverId,
+      staffId: req.params.staffId,
       totalHours: Number(totalHours.toFixed(2)),
     });
   } catch (error) {

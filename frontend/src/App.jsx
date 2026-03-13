@@ -29,7 +29,7 @@
 
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import CaregiverDashboard from "./pages/CaregiverDashboard"; // punch page
+import CaregiverDashboard from "./pages/CaregiverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import ClerkTokenBridge from "./components/ClerkTokenBridge";
@@ -93,10 +93,11 @@ function App() {
         {/* Legacy login routes -> Clerk */}
         <Route path="/login" element={<Navigate to="/sign-in" replace />} />
         <Route path="/caregiver-login" element={<Navigate to="/sign-in" replace />} />
+        <Route path="/caregiver" element={<Navigate to="/staff" replace />} />
 
-        {/* Caregiver main page */}
+        {/* Staff main page */}
         <Route
-          path="/caregiver"
+          path="/staff"
           element={
             <>
               <SignedIn>

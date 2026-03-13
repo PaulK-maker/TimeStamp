@@ -1,10 +1,10 @@
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 
-// @desc   Create new caregiver
-// @route  POST /api/caregivers
-const bcrypt = require("bcryptjs");  // ADD THIS LINE AT TOP
+// @desc   Create a new staff member
+// @route  POST /api/staff
+const bcrypt = require("bcryptjs");
 
-const createCaregiver = async (req, res) => {
+const createStaff = async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
@@ -12,21 +12,21 @@ const createCaregiver = async (req, res) => {
     const plan = req.plan;
     if (!tenantId || !plan) {
       return res.status(403).json({
-        message: "Plan selection is required before managing caregivers.",
+        message: "Plan selection is required before managing staff.",
         code: "PLAN_REQUIRED",
       });
     }
 
-    const currentCount = await Caregiver.countDocuments({
+    const currentCount = await Staff.countDocuments({
       tenantId,
-      role: "caregiver",
+      role: "staff",
     });
 
-    if (typeof plan.maxCaregivers === "number" && currentCount >= plan.maxCaregivers) {
+    if (typeof plan.maxStaff === "number" && currentCount >= plan.maxStaff) {
       return res.status(403).json({
-        message: "Caregiver limit reached for your plan.",
-        code: "CARESEAT_LIMIT",
-        maxCaregivers: plan.maxCaregivers,
+        message: "Staff limit reached for your plan.",
+        code: "STAFFSEAT_LIMIT",
+        maxStaff: plan.maxStaff,
       });
     }
     
@@ -34,7 +34,7 @@ const createCaregiver = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    const caregiver = await Caregiver.create({
+    const staffMember = await Staff.create({
       firstName,
       lastName,
       email,
@@ -44,16 +44,17 @@ const createCaregiver = async (req, res) => {
     });
     
     // Hide password in response
-    const { password: _, ...caregiverWithoutPassword } = caregiver.toObject();
+    const { password: _, ...staffWithoutPassword } = staffMember.toObject();
     
-    res.status(201).json(caregiverWithoutPassword);
+    res.status(201).json(staffWithoutPassword);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
-// @desc   Get all caregivers
-// @route  GET /api/caregivers
-const getCaregivers = async (req, res) => {
+
+// @desc   Get all staff members
+// @route  GET /api/staff
+const getStaff = async (req, res) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) {
@@ -63,16 +64,16 @@ const getCaregivers = async (req, res) => {
       });
     }
 
-    const caregivers = await Caregiver.find({ tenantId }).select(
+    const staffMembers = await Staff.find({ tenantId }).select(
       "firstName lastName email role clerkUserId isActive createdAt updatedAt"
     );
-    res.json(caregivers);
+    res.json(staffMembers);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
 module.exports = {
-  createCaregiver,
-  getCaregivers,
+  createStaff,
+  getStaff,
 };

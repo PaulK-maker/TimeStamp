@@ -1,5 +1,5 @@
 const Tenant = require("../models/Tenant");
-const Caregiver = require("../models/caregiver");
+const Staff = require("../models/staff");
 const { getPlan } = require("../config/plans");
 
 function serializePlan(plan) {
@@ -8,12 +8,12 @@ function serializePlan(plan) {
     id: plan.id,
     name: plan.name,
     priceUsdMonthly: plan.priceUsdMonthly,
-    maxCaregivers: plan.maxCaregivers,
+    maxStaff: plan.maxStaff,
     features: plan.features,
   };
 }
 
-function serializeFacility({ tenant, plan, caregiverCount }) {
+function serializeFacility({ tenant, plan, staffCount }) {
   return {
     tenantCode: tenant.tenantCode || null,
     name: tenant.name || "",
@@ -22,7 +22,7 @@ function serializeFacility({ tenant, plan, caregiverCount }) {
     planId: tenant.planId || null,
     plan: serializePlan(plan),
 
-    caregiverCount: typeof caregiverCount === "number" ? caregiverCount : null,
+    staffCount: typeof staffCount === "number" ? staffCount : null,
 
     // Stripe-ready fields (nullable until Stripe is wired)
     subscriptionStatus: tenant.subscriptionStatus || null,
@@ -46,7 +46,7 @@ exports.listFacilities = async (req, res) => {
 
     const facilities = tenants.map((tenant) => {
       const plan = tenant.planSelected ? getPlan(tenant.planId) : null;
-      return serializeFacility({ tenant, plan, caregiverCount: null });
+      return serializeFacility({ tenant, plan, staffCount: null });
     });
 
     return res.json({ facilities });
@@ -57,7 +57,7 @@ exports.listFacilities = async (req, res) => {
 };
 
 // GET /api/superadmin/facilities/:tenantCode/summary
-// Read-only: show one facility by tenantCode, including caregiver count.
+// Read-only: show one facility by tenantCode, including staff count.
 exports.getFacilitySummary = async (req, res) => {
   try {
     const tenantCode = (req.params.tenantCode || "").toString().trim().toUpperCase();
@@ -76,9 +76,9 @@ exports.getFacilitySummary = async (req, res) => {
     }
 
     const plan = tenant.planSelected ? getPlan(tenant.planId) : null;
-    const caregiverCount = await Caregiver.countDocuments({ tenantId: tenant._id, isActive: { $ne: false } });
+    const staffCount = await Staff.countDocuments({ tenantId: tenant._id, isActive: { $ne: false } });
 
-    return res.json({ facility: serializeFacility({ tenant, plan, caregiverCount }) });
+    return res.json({ facility: serializeFacility({ tenant, plan, staffCount }) });
   } catch (err) {
     console.error("getFacilitySummary failed:", err);
     return res.status(500).json({ message: "Server error" });

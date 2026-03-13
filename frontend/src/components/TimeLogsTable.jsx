@@ -7,7 +7,7 @@ const TimeLogsTable = ({ logs }) => {
       <table border="1" cellPadding="5">
         <thead>
           <tr>
-            <th>Caregiver</th>
+            <th>Staff</th>
             <th>Punch In</th>
             <th>Punch Out</th>
             <th>Total Hours</th>
@@ -16,7 +16,7 @@ const TimeLogsTable = ({ logs }) => {
         <tbody>
           {logs.map((log) => (
             <tr key={log.id}>
-              <td>{log.caregiver.firstName} {log.caregiver.lastName}</td>
+              <td>{log.staff.firstName} {log.staff.lastName}</td>
               <td>{new Date(log.punchIn).toLocaleString()}</td>
               <td>{log.punchOut ? new Date(log.punchOut).toLocaleString() : "-"}</td>
               <td>{log.totalHours}</td>

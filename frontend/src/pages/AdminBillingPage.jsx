@@ -391,7 +391,7 @@ export default function AdminBillingPage() {
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #e5e5e5", borderRadius: 8 }}>
           <div style={{ fontWeight: 600 }}>Current plan: {currentPlan.name}</div>
           <div style={{ color: "#555", marginTop: 4 }}>
-            Seats: up to {currentPlan.maxCaregivers} caregivers • Data management: {String(Boolean(currentPlan.features?.dataManagement))} • Printing: {String(Boolean(currentPlan.features?.printing))}
+            Seats: up to {currentPlan.maxStaff} staff members • Data management: {String(Boolean(currentPlan.features?.dataManagement))} • Printing: {String(Boolean(currentPlan.features?.printing))}
           </div>
           {tenant?.tenantCode ? (
             <div style={{ color: "#555", marginTop: 6 }}>
@@ -415,7 +415,7 @@ export default function AdminBillingPage() {
 
       {tenant?.tenantCode ? (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #e5e5e5", borderRadius: 8 }}>
-          <div style={{ fontWeight: 600 }}>Invite caregiver by email (one-time code)</div>
+          <div style={{ fontWeight: 600 }}>Invite staff member by email (one-time code)</div>
           <div style={{ color: "#555", marginTop: 4 }}>
             Sends a 6-digit invite code to the user’s email. They must sign in with that same email, then enter the code on the tenant setup screen.
             <span style={{ marginLeft: 6 }}>
@@ -427,7 +427,7 @@ export default function AdminBillingPage() {
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="caregiver@facility.com"
+              placeholder="staff@facility.com"
               style={{ flex: "1 1 260px", padding: 10, borderRadius: 6, border: "1px solid #ddd" }}
             />
             <button
@@ -487,7 +487,7 @@ export default function AdminBillingPage() {
             </div>
 
             <div style={{ marginTop: 10, color: "#555" }}>
-              <div>Up to <strong>{p.maxCaregivers}</strong> caregivers</div>
+              <div>Up to <strong>{p.maxStaff}</strong> staff members</div>
               <div>Data management: <strong>{p.features?.dataManagement ? "Yes" : "No"}</strong></div>
               <div>Printing/export: <strong>{p.features?.printing ? "Yes" : "No"}</strong></div>
             </div>
