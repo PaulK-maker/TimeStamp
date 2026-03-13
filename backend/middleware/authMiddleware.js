@@ -263,18 +263,28 @@ module.exports = (req, res, next) => {
   }
 
   const token = authHeader.split(" ")[1];
+  const payload = decodeJwtPayload(token);
+  const iss = payload && typeof payload.iss === "string" ? payload.iss : "";
+  const looksLikeClerkToken = iss.toLowerCase().includes("clerk");
 
   // Helpful guidance: if the frontend is sending a Clerk session token but the backend
   // isn't configured with CLERK_SECRET_KEY, JWT verification will always fail.
   if (!process.env.CLERK_SECRET_KEY) {
-    const payload = decodeJwtPayload(token);
-    const iss = payload && typeof payload.iss === "string" ? payload.iss : "";
     if (iss.toLowerCase().includes("clerk")) {
       return res.status(401).json({
         message:
           "Backend is not configured for Clerk. Set CLERK_SECRET_KEY in backend/.env and restart the server so /api/auth/me can validate Clerk session tokens.",
       });
     }
+  }
+
+  // If Clerk is configured but the request still reached legacy JWT fallback with a Clerk token,
+  // return a targeted error instead of the generic legacy JWT message.
+  if (process.env.CLERK_SECRET_KEY && looksLikeClerkToken) {
+    return res.status(401).json({
+      message:
+        "Clerk token verification failed. Confirm the frontend publishable key and backend CLERK_SECRET_KEY belong to the same Clerk application, restart the backend after env changes, and ensure REACT_APP_API_BASE_URL points to this backend.",
+    });
   }
 
   try {

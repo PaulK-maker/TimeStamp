@@ -35,6 +35,13 @@ const extraAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .filter(Boolean);
 extraAllowedOrigins.forEach((o) => allowedOrigins.add(o));
 
+const clerkAuthorizedParties = (
+  process.env.CLERK_AUTHORIZED_PARTIES || Array.from(allowedOrigins).join(",")
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => /^https?:\/\//i.test(origin));
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Postman)
@@ -73,11 +80,20 @@ app.use(express.urlencoded({ extended: true }));
         "⚠️  CLERK_SECRET_KEY is set but no publishable key was found (CLERK_PUBLISHABLE_KEY/VITE_CLERK_PUBLISHABLE_KEY/REACT_APP_CLERK_PUBLISHABLE_KEY). Continuing without publishableKey."
       );
     }
+    if (clerkAuthorizedParties.length) {
+      console.log(
+        "Clerk authorized parties:",
+        clerkAuthorizedParties.join(", ")
+      );
+    }
 
     app.use(
       clerkMiddleware({
         secretKey: clerkSecretKey,
         ...(clerkPublishableKey ? { publishableKey: clerkPublishableKey } : {}),
+        ...(clerkAuthorizedParties.length
+          ? { authorizedParties: clerkAuthorizedParties }
+          : {}),
       })
     );
   }
