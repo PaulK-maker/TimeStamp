@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { getMe } from "../services/me";
 
 function formatUsd(n) {
   if (typeof n !== "number" || Number.isNaN(n)) return "$0";
@@ -109,9 +110,24 @@ export default function AdminBillingPage() {
       setInviteExpiresAt(null);
 
       try {
-        const plansRes = await api.get("/billing/plans");
+        const [plansRes, me] = await Promise.all([
+          api.get("/billing/plans"),
+          getMe({ forceRefresh: true }),
+        ]);
         if (cancelled) return;
         setPlans(Array.isArray(plansRes.data?.plans) ? plansRes.data.plans : []);
+
+        if (!me?.tenantId) {
+          setTenantRequired(true);
+          setTenantRequiredMessage(
+            "Tenant is not assigned for this account. Create your facility first to finish billing setup."
+          );
+          setTenant(null);
+          setCurrentPlan(null);
+          setBillingInfo(null);
+          setInvoices([]);
+          return;
+        }
 
         try {
           const meRes = await api.get("/billing/me");
