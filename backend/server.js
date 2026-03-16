@@ -15,6 +15,7 @@ const billingRoutes = require("./routes/billingRoutes");
 const tenantRoutes = require("./routes/tenantRoutes");
 const tenantOtpRoutes = require("./routes/tenantOtpRoutes");
 const superadminRoutes = require("./routes/superadminRoutes");
+const { stripeWebhookHandler } = require("./controllers/stripeWebhookController");
 
 const app = express();
 
@@ -59,6 +60,8 @@ app.use(cors({
 }));
 
 // 3. Body parsers for JSON and URL-encoded requests
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

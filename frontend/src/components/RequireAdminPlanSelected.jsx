@@ -53,7 +53,7 @@ export default function RequireAdminPlanSelected({ children }) {
 
         const billing = await api.get("/billing/me");
         if (cancelled) return;
-        setPlanSelected(Boolean(billing.data?.tenant?.planSelected));
+        setPlanSelected(Boolean(billing.data?.billing?.accessGranted));
       } catch (err) {
         if (cancelled) return;
         const code = err?.response?.data?.code;

@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 function formatUsd(n) {
   if (typeof n !== "number" || Number.isNaN(n)) return "$0";
   return `$${n}`;
+}
+
+function formatCurrencyFromMinorUnits(amount, currency = "usd") {
+  if (typeof amount !== "number" || Number.isNaN(amount)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: (currency || "usd").toUpperCase(),
+  }).format(amount / 100);
 }
 
 function formatTenantCode(code) {
@@ -20,13 +28,19 @@ function formatTenantCode(code) {
 
 export default function AdminBillingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [tenant, setTenant] = useState(null);
   const [currentPlan, setCurrentPlan] = useState(null);
+  const [billingInfo, setBillingInfo] = useState(null);
   const [plans, setPlans] = useState([]);
   const [savingPlanId, setSavingPlanId] = useState(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [tenantRequired, setTenantRequired] = useState(false);
   const [tenantRequiredMessage, setTenantRequiredMessage] = useState("");
 
@@ -45,7 +59,45 @@ export default function AdminBillingPage() {
   const [inviteExpiresAt, setInviteExpiresAt] = useState(null);
 
   useEffect(() => {
+    const checkoutState = new URLSearchParams(location.search).get("checkout");
+
+    if (checkoutState === "success") {
+      setStatusMessage(
+        "Stripe returned successfully. If the paid plan does not appear yet, wait a few seconds and refresh while the webhook finishes syncing."
+      );
+      return;
+    }
+
+    if (checkoutState === "cancel") {
+      setStatusMessage("Stripe checkout was canceled. No billing changes were applied.");
+      return;
+    }
+
+    setStatusMessage("");
+  }, [location.search]);
+
+  useEffect(() => {
     let cancelled = false;
+
+    async function loadInvoicesIfAvailable(nextBilling) {
+      if (!nextBilling?.invoicesEnabled) {
+        setInvoices([]);
+        return;
+      }
+
+      setInvoicesLoading(true);
+      try {
+        const invoicesRes = await api.get("/billing/invoices");
+        if (cancelled) return;
+        setInvoices(Array.isArray(invoicesRes.data?.invoices) ? invoicesRes.data.invoices : []);
+      } catch {
+        if (cancelled) return;
+        setInvoices([]);
+      } finally {
+        if (cancelled) return;
+        setInvoicesLoading(false);
+      }
+    }
 
     async function load() {
       setLoading(true);
@@ -66,6 +118,8 @@ export default function AdminBillingPage() {
           if (cancelled) return;
           setTenant(meRes.data?.tenant || null);
           setCurrentPlan(meRes.data?.plan || null);
+          setBillingInfo(meRes.data?.billing || null);
+          await loadInvoicesIfAvailable(meRes.data?.billing || null);
         } catch (meErr) {
           if (cancelled) return;
           const code = meErr?.response?.data?.code;
@@ -78,6 +132,8 @@ export default function AdminBillingPage() {
             );
             setTenant(null);
             setCurrentPlan(null);
+            setBillingInfo(null);
+            setInvoices([]);
           } else {
             setError(message || "Failed to load billing");
           }
@@ -102,8 +158,21 @@ export default function AdminBillingPage() {
     const meRes = await api.get("/billing/me");
     setTenant(meRes.data?.tenant || null);
     setCurrentPlan(meRes.data?.plan || null);
+    setBillingInfo(meRes.data?.billing || null);
     setTenantRequired(false);
     setTenantRequiredMessage("");
+
+    if (meRes.data?.billing?.invoicesEnabled) {
+      setInvoicesLoading(true);
+      try {
+        const invoicesRes = await api.get("/billing/invoices");
+        setInvoices(Array.isArray(invoicesRes.data?.invoices) ? invoicesRes.data.invoices : []);
+      } finally {
+        setInvoicesLoading(false);
+      }
+    } else {
+      setInvoices([]);
+    }
   }
 
   async function copyToClipboard(text) {
@@ -202,11 +271,52 @@ export default function AdminBillingPage() {
       const res = await api.post("/billing/select-plan", { planId });
       setTenant(res.data?.tenant || null);
       setCurrentPlan(res.data?.plan || null);
+      setBillingInfo(res.data?.billing || null);
+
+      if (res.data?.mode === "checkout_required") {
+        const checkoutRes = await api.post("/billing/checkout-session", {
+          planId,
+          returnPath: "/admin/billing?checkout=success",
+        });
+
+        if (checkoutRes.data?.url) {
+          window.location.assign(checkoutRes.data.url);
+          return;
+        }
+
+        throw new Error("Stripe checkout URL was not returned by the server.");
+      }
+
+      if (res.data?.mode === "already_active") {
+        setStatusMessage("This paid plan is already active for your facility.");
+        return;
+      }
+
       navigate("/admin", { replace: true });
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to select plan");
     } finally {
       setSavingPlanId(null);
+    }
+  }
+
+  async function handleOpenPortal() {
+    setError("");
+    setPortalBusy(true);
+    try {
+      const res = await api.post("/billing/portal-session", {
+        returnPath: "/admin/billing",
+      });
+
+      if (!res.data?.url) {
+        throw new Error("Stripe billing portal URL was not returned by the server.");
+      }
+
+      window.location.assign(res.data.url);
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to open billing portal");
+    } finally {
+      setPortalBusy(false);
     }
   }
 
@@ -229,6 +339,12 @@ export default function AdminBillingPage() {
       {error ? (
         <div style={{ background: "#fff3f3", border: "1px solid #ffd7d7", padding: 12, borderRadius: 8, marginTop: 16 }}>
           <strong style={{ color: "#b00020" }}>Error:</strong> {error}
+        </div>
+      ) : null}
+
+      {statusMessage ? (
+        <div style={{ background: "#eef8ff", border: "1px solid #cfe8ff", padding: 12, borderRadius: 8, marginTop: 16, color: "#0b5394" }}>
+          {statusMessage}
         </div>
       ) : null}
 
@@ -393,10 +509,37 @@ export default function AdminBillingPage() {
           <div style={{ color: "#555", marginTop: 4 }}>
             Seats: up to {currentPlan.maxStaff} staff members • Data management: {String(Boolean(currentPlan.features?.dataManagement))} • Printing: {String(Boolean(currentPlan.features?.printing))}
           </div>
+          {tenant?.subscriptionStatus ? (
+            <div style={{ color: "#555", marginTop: 6 }}>
+              Billing status: <strong>{tenant.subscriptionStatus}</strong>
+              {tenant?.currentPeriodEnd ? (
+                <span style={{ marginLeft: 8 }}>
+                  Renews or changes on: {new Date(tenant.currentPeriodEnd).toLocaleString()}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {tenant?.tenantCode ? (
             <div style={{ color: "#555", marginTop: 6 }}>
               Facility code (support/reference): <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{formatTenantCode(tenant.tenantCode)}</span>
             </div>
+          ) : null}
+          {billingInfo?.canManagePortal ? (
+            <button
+              onClick={handleOpenPortal}
+              disabled={portalBusy}
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #111",
+                background: "#fff",
+                color: "#111",
+                cursor: "pointer",
+              }}
+            >
+              {portalBusy ? "Opening billing portal…" : "Manage billing in Stripe"}
+            </button>
           ) : null}
         </div>
       ) : (
@@ -405,6 +548,11 @@ export default function AdminBillingPage() {
           <div style={{ color: "#555", marginTop: 4 }}>
             Select a plan below to unlock the appropriate features.
           </div>
+          {currentPlan && billingInfo?.requiresCheckout ? (
+            <div style={{ color: "#555", marginTop: 6 }}>
+              Selected plan: <strong>{currentPlan.name}</strong>. Complete Stripe checkout to activate this paid plan.
+            </div>
+          ) : null}
           {tenant?.tenantCode ? (
             <div style={{ color: "#555", marginTop: 6 }}>
               Facility code (support/reference): <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{formatTenantCode(tenant.tenantCode)}</span>
@@ -478,6 +626,51 @@ export default function AdminBillingPage() {
         </div>
       ) : null}
 
+      {billingInfo?.invoicesEnabled ? (
+        <div style={{ marginTop: 16, padding: 12, border: "1px solid #e5e5e5", borderRadius: 8 }}>
+          <div style={{ fontWeight: 600 }}>Recent invoices</div>
+          {invoicesLoading ? (
+            <div style={{ color: "#555", marginTop: 8 }}>Loading invoices…</div>
+          ) : invoices.length ? (
+            <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+              {invoices.map((invoice) => (
+                <div
+                  key={invoice.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: 10,
+                    border: "1px solid #efefef",
+                    borderRadius: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{invoice.id}</div>
+                    <div style={{ color: "#555", marginTop: 4 }}>
+                      {invoice.status || "unknown"} • {invoice.createdAt ? new Date(invoice.createdAt).toLocaleString() : "No date"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 700 }}>
+                      {formatCurrencyFromMinorUnits(invoice.amountPaid || invoice.amountDue, invoice.currency)}
+                    </div>
+                    {invoice.hostedInvoiceUrl ? (
+                      <a href={invoice.hostedInvoiceUrl} target="_blank" rel="noreferrer" style={{ color: "#0b5394" }}>
+                        Open invoice
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ color: "#555", marginTop: 8 }}>No invoices yet.</div>
+          )}
+        </div>
+      ) : null}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginTop: 20 }}>
         {planCards.map((p) => (
           <div key={p.id} style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16, background: "white" }}>
@@ -506,15 +699,29 @@ export default function AdminBillingPage() {
                   width: "100%",
                 }}
               >
-                {p.isSelected ? "Selected" : savingPlanId === p.id ? "Selecting…" : "Select plan"}
+                {p.isSelected
+                  ? "Selected"
+                  : savingPlanId === p.id
+                    ? p.billingType === "stripe"
+                      ? "Opening checkout…"
+                      : "Selecting…"
+                    : p.billingType === "stripe"
+                      ? "Continue to checkout"
+                      : "Select plan"}
               </button>
             </div>
+
+            {p.billingType === "stripe" ? (
+              <div style={{ marginTop: 10, color: "#777", fontSize: 13 }}>
+                Secure payment and subscription management are handled in Stripe Checkout.
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
 
       <div style={{ marginTop: 18, color: "#777", fontSize: 13 }}>
-        Stripe billing will be wired later; for now this sets a plan flag per tenant.
+        Free plan selection happens immediately. Paid plans redirect to Stripe Checkout and activate only after Stripe confirms the subscription.
       </div>
     </div>
   );

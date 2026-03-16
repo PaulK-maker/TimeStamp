@@ -298,12 +298,21 @@ Existing tenants may not have a code yet. Run the code backfill:
 - All tenants (production requires confirmation):
     - `ALLOW_ALL_TENANTS=true CONFIRM=YES DRY_RUN=false node backend/backfillTenantCode.js`
 
-### Stripe integration (future)
-Once Stripe is introduced:
+### Stripe integration (in progress)
+Current implementation status:
 
-- `Tenant` stores Stripe customer/subscription identifiers.
-- Webhooks become the source of truth for subscription state.
-- Plan enforcement remains backend-driven via plan/feature mapping.
+- Stripe Checkout is wired for paid plan selection.
+- Stripe Customer Portal session creation is wired for existing Stripe customers.
+- Stripe webhook handling is mounted at `/api/stripe/webhook`.
+- `Tenant` stores Stripe customer/subscription identifiers and billing status.
+- Plan enforcement now checks paid subscription state before granting paid-plan access.
+
+Configuration and rollout notes:
+
+- Stripe test-mode env values must be set in `backend/.env` before paid-plan checkout can run.
+- The repo now includes `backend/.env.example` and `frontend/.env.example` starter files.
+- Stripe CLI is the recommended local webhook-forwarding tool.
+- Webhooks remain the source of truth for paid subscription activation.
 
 ---
 

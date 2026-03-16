@@ -16,6 +16,7 @@ See the [Setup Guide](project-guide/setup.md) for more details.
 Notes:
 - If you use Clerk on the frontend, the backend must have `CLERK_SECRET_KEY` set (see `backend/.env.example`).
 - Example env files are provided in `backend/.env.example` and `frontend/.env.example`.
+- Stripe paid-plan setup also starts from `backend/.env.example`; local webhook testing uses Stripe CLI.
 
 ## Admin Quick Sheet
 

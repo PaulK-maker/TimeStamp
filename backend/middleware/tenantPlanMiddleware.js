@@ -1,5 +1,15 @@
 const Tenant = require("../models/Tenant");
 const { getPlan } = require("../config/plans");
+const {
+  isPaidPlan,
+  isSubscriptionAccessEnabled,
+} = require("../config/stripeBilling");
+
+function hasPlanAccess(tenant, plan) {
+  if (!tenant?.planSelected || !plan) return false;
+  if (!isPaidPlan(plan.id)) return true;
+  return isSubscriptionAccessEnabled(tenant.subscriptionStatus);
+}
 
 async function loadTenantAndPlan(req) {
   if (!req.user) {
@@ -26,7 +36,7 @@ async function loadTenantAndPlan(req) {
     throw err;
   }
 
-  const plan = tenant.planSelected ? getPlan(tenant.planId) : null;
+  const plan = tenant.planId ? getPlan(tenant.planId) : null;
 
   req.tenant = tenant;
   req.plan = plan;
@@ -38,7 +48,7 @@ function requirePlanSelected() {
   return async (req, res, next) => {
     try {
       const { tenant, plan } = await loadTenantAndPlan(req);
-      if (!tenant.planSelected || !plan) {
+      if (!hasPlanAccess(tenant, plan)) {
         return res.status(403).json({
           message: "A pricing plan must be selected before using this feature.",
           code: "PLAN_REQUIRED",
@@ -58,7 +68,7 @@ function requireFeature(featureName) {
     try {
       const { tenant, plan } = await loadTenantAndPlan(req);
 
-      if (!tenant.planSelected || !plan) {
+      if (!hasPlanAccess(tenant, plan)) {
         return res.status(403).json({
           message: "A pricing plan must be selected before using this feature.",
           code: "PLAN_REQUIRED",
