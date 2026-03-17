@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { getMe } from "../services/me";
+import { getLastAuthTokenError } from "../services/authToken";
 
 function formatUsd(n) {
   if (typeof n !== "number" || Number.isNaN(n)) return "$0";
@@ -25,6 +26,17 @@ function formatTenantCode(code) {
   if (!normalized) return "";
   if (normalized.length <= 4) return normalized;
   return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+}
+
+function getClerkTokenFailureMessage() {
+  const tokenError = getLastAuthTokenError();
+  const detail = tokenError?.message ? ` Clerk detail: ${tokenError.message}` : "";
+
+  return (
+    "Clerk could not create a session token for this browser, so billing requests cannot authenticate. " +
+    "In Clerk Dashboard, confirm http://localhost:3000 is allowed under Domains & URLs / allowed origins for this development instance, then sign out and sign back in." +
+    detail
+  );
 }
 
 export default function AdminBillingPage() {
@@ -151,12 +163,22 @@ export default function AdminBillingPage() {
             setBillingInfo(null);
             setInvoices([]);
           } else {
-            setError(message || "Failed to load billing");
+            const tokenError = getLastAuthTokenError();
+            setError(
+              tokenError
+                ? getClerkTokenFailureMessage()
+                : message || "Failed to load billing"
+            );
           }
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err?.response?.data?.message || err?.message || "Failed to load billing");
+        const tokenError = getLastAuthTokenError();
+        setError(
+          tokenError
+            ? getClerkTokenFailureMessage()
+            : err?.response?.data?.message || err?.message || "Failed to load billing"
+        );
       } finally {
         if (cancelled) return;
         setLoading(false);
@@ -209,12 +231,15 @@ export default function AdminBillingPage() {
     try {
       const res = await api.post("/tenant/otp/send-bootstrap", {});
       setBootstrapStep("awaiting_code");
-      setBootstrapOtp("");
-      setBootstrapCopyCode(res.data?.setupCode || "");
       setBootstrapExpiresAt(res.data?.expiresAt || null);
 
       if (res.data?.code === "MAIL_NOT_CONFIGURED" && res.data?.setupCode) {
-        // Copy-code fallback is shown in UI.
+        // Auto-fill the input so the user never has to retype the displayed code.
+        setBootstrapCopyCode(res.data.setupCode);
+        setBootstrapOtp(res.data.setupCode);
+      } else {
+        setBootstrapOtp("");
+        setBootstrapCopyCode("");
       }
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Failed to request setup code");
@@ -310,7 +335,12 @@ export default function AdminBillingPage() {
 
       navigate("/admin", { replace: true });
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to select plan");
+      const tokenError = getLastAuthTokenError();
+      setError(
+        tokenError
+          ? getClerkTokenFailureMessage()
+          : err?.response?.data?.message || err?.message || "Failed to select plan"
+      );
     } finally {
       setSavingPlanId(null);
     }
@@ -330,7 +360,12 @@ export default function AdminBillingPage() {
 
       window.location.assign(res.data.url);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to open billing portal");
+      const tokenError = getLastAuthTokenError();
+      setError(
+        tokenError
+          ? getClerkTokenFailureMessage()
+          : err?.response?.data?.message || err?.message || "Failed to open billing portal"
+      );
     } finally {
       setPortalBusy(false);
     }
@@ -687,6 +722,21 @@ export default function AdminBillingPage() {
         </div>
       ) : null}
 
+      {tenantRequired ? (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 12,
+            border: "1px solid #ffe7b8",
+            borderRadius: 8,
+            background: "#fff8e6",
+            color: "#7a4b00",
+          }}
+        >
+          Your facility must be created or joined before plan checkout is enabled.
+        </div>
+      ) : null}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginTop: 20 }}>
         {planCards.map((p) => (
           <div key={p.id} style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16, background: "white" }}>
@@ -717,6 +767,10 @@ export default function AdminBillingPage() {
               >
                 {p.isSelected
                   ? "Selected"
+                  : tenantRequired
+                    ? p.billingType === "stripe"
+                      ? "Setup required before checkout"
+                      : "Setup required before selection"
                   : savingPlanId === p.id
                     ? p.billingType === "stripe"
                       ? "Opening checkout…"

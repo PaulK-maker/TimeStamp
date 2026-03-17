@@ -414,7 +414,9 @@ exports.verifyBootstrapOtp = async (req, res) => {
 
     const now = new Date();
 
-    const otp = await TenantOtp.findOne({
+    // Fetch ALL active non-expired OTPs for this email so a race/double-send
+    // does not cause the user's valid code to be silently rejected.
+    const candidates = await TenantOtp.find({
       purpose: "TENANT_BOOTSTRAP_CONFIRM",
       email,
       tenantId: null,
@@ -424,24 +426,27 @@ exports.verifyBootstrapOtp = async (req, res) => {
       .sort({ createdAt: -1 })
       .select("+codeHash verifyAttempts lockedUntil");
 
-    if (!otp) {
+    if (!candidates.length) {
       return res.status(400).json({ message: "Invalid or expired code" });
     }
 
-    if (otp.lockedUntil && otp.lockedUntil > now) {
+    // Check rate-lock on the newest record first.
+    const newest = candidates[0];
+    if (newest.lockedUntil && newest.lockedUntil > now) {
       return res.status(429).json({ message: "Too many attempts. Please wait and try again.", code: "OTP_RATE_LIMITED" });
     }
 
-    const actual = computeCodeHash({ purpose: otp.purpose, email, tenantId: null, code });
-    const matches = timingSafeEqualHex(otp.codeHash, actual);
+    const actual = computeCodeHash({ purpose: "TENANT_BOOTSTRAP_CONFIRM", email, tenantId: null, code });
+    const otp = candidates.find((c) => timingSafeEqualHex(c.codeHash, actual)) || null;
 
-    if (!matches) {
-      const nextAttempts = Number(otp.verifyAttempts || 0) + 1;
+    if (!otp) {
+      // Increment attempt counter on the newest record so brute-force lockout works.
+      const nextAttempts = Number(newest.verifyAttempts || 0) + 1;
       const update = { $set: { verifyAttempts: nextAttempts } };
       if (nextAttempts >= 6) {
         update.$set.lockedUntil = new Date(now.getTime() + 10 * 60 * 1000);
       }
-      await TenantOtp.updateOne({ _id: otp._id }, update);
+      await TenantOtp.updateOne({ _id: newest._id }, update);
       return res.status(400).json({ message: "Invalid or expired code" });
     }
 

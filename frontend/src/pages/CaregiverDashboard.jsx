@@ -61,7 +61,10 @@ const CaregiverDashboard = () => {
 
     setTotalHours(total);
 
-    const activeShift = logsData.find((log) => log.punchIn && !log.punchOut);
+    const activeShift = logsData.find((log) => {
+      const out = log.effectivePunchOut ?? log.punchOut;
+      return Boolean(log.punchIn && !out);
+    });
     setCurrentlyClockedIn(!!activeShift);
   }, []);
 
