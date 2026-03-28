@@ -314,6 +314,139 @@ Configuration and rollout notes:
 - Stripe CLI is the recommended local webhook-forwarding tool.
 - Webhooks remain the source of truth for paid subscription activation.
 
+### Payroll integration (future / provider-backed)
+Payroll should be integrated as a provider-backed workflow, not as custom payroll logic built inside the app.
+
+TimeStamp already has the operational foundations a payroll workflow needs:
+
+- tenant-scoped staff records
+- tenant-scoped time entries
+- admin review and management flows
+
+That means payroll can fit naturally into the current product, but only if TimeStamp remains the operational layer and a payroll provider such as Gusto remains the compliance and payment layer.
+
+#### How payroll fits into this app
+Example future flow:
+
+1. Admin adds and manages employees in TimeStamp.
+2. TimeStamp stores operational data such as worker identity, role, hours worked, and future payroll metadata.
+3. Admin clicks **Run Payroll**.
+4. The backend sends normalized payroll inputs to Gusto.
+5. Gusto calculates taxes, deductions, and net pay, then handles payroll execution and filings.
+6. Gusto sends payments.
+7. Gusto webhooks update payroll status back in TimeStamp.
+
+TimeStamp should remain the source of truth for time capture and admin workflows.
+Gusto should remain the source of truth for payroll execution, tax handling, and compliance.
+
+#### Critical compliance boundary
+Do not build payroll logic directly in this app.
+
+Payroll involves:
+
+- tax law compliance
+- withholding rules
+- filings
+- employee payment regulations
+- highly sensitive personal and banking data
+
+Because of that, TimeStamp should never attempt to implement:
+
+- custom tax calculations
+- direct payroll disbursement logic
+- in-house filing workflows
+- homemade compliance rules
+
+The app can prepare payroll-ready data, but the payroll provider must own the regulated workflows.
+
+#### Stripe vs payroll
+Stripe and payroll solve different problems.
+
+| Area | Stripe | Payroll Provider (Gusto) |
+| --- | --- | --- |
+| Purpose | Customer billing | Paying employees and contractors |
+| Primary use in TimeStamp | Subscription plans and customer payments | Staff payroll execution |
+| Complexity | Medium | Very high |
+| Compliance burden | Moderate | Extreme |
+| Suitable to build in-house | Often yes | No |
+
+Recommended product architecture:
+
+- Stripe -> collect customer money
+- Gusto -> pay employees and contractors
+
+#### Proposed payroll roadmap
+**Phase A: Payroll data foundation**
+Prepare the app to support payroll without storing unnecessary regulated data locally.
+
+Possible future additions:
+
+- compensation type (`hourly`, `salary`, `contractor`)
+- compensation rate or salary reference
+- payroll eligibility flags
+- worker classification metadata
+- payroll provider linkage IDs
+- approved-hours views for payroll periods
+
+At this stage, avoid storing SSNs, bank details, tax elections, or filing data locally unless there is a clear provider-driven requirement.
+
+**Phase B: Admin payroll run workflow**
+Add an admin payroll workflow that uses provider APIs.
+
+Possible future flow:
+
+- admin selects payroll period
+- app summarizes approved hours by worker
+- admin reviews workers and totals
+- backend sends the pay run payload to Gusto
+- app stores payroll run references and statuses
+
+This app should validate operational completeness, not payroll legality.
+
+**Phase C: Webhooks and audit trail**
+Use provider webhooks to keep the app synchronized.
+
+Future webhook events may update:
+
+- payroll run status
+- payment status
+- failure reasons
+- correction state
+- audit history for admin review
+
+This keeps TimeStamp operationally useful without taking ownership of payroll compliance.
+
+#### Product and monetization fit
+Payroll can become a strong premium capability in the future.
+
+Potential premium features:
+
+- staff payroll
+- contractor payouts
+- event worker payments
+- payroll-period summaries
+- payroll export and reconciliation views
+
+However, the implementation priority should remain architecture and compliance first, not feature marketing.
+
+#### Current scope boundary
+Payroll is not currently implemented.
+
+The app today supports:
+
+- staff management
+- tenant scoping
+- time tracking
+- billing via Stripe
+
+The app does not yet support:
+
+- payroll provider integration
+- payroll runs
+- payroll webhooks
+- employee tax workflows
+- bank or SSN handling
+
 ---
 
 ## 3. Feature: Location-Validated Geofenced Time Tracking

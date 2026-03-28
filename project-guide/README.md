@@ -10,7 +10,7 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 - [API Documentation](api-documentation.md): Details about the backend endpoints.
 - [Database Schema](database.md): Information about the MongoDB models.
 - [Schema Analysis](schema-analysis.md): Technical deep-dive into schema changes for new features.
-- [Implementation Plan](plan.md): Roadmap for Clerk integration and Geofencing features.
+- [Implementation Plan](plan.md): Roadmap for Clerk integration, tenant billing, future payroll integration through a provider such as Gusto, and geofencing features.
 
 ## Project Overview
 
