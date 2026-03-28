@@ -3,7 +3,7 @@ const PLANS = {
     id: "free_1",
     name: "Free",
     priceUsdMonthly: 0,
-    maxStaff: 1,
+    maxStaff: 2,
     features: {
       viewLogs: true,
       dataManagement: false,

@@ -1,9 +1,67 @@
 const Tenant = require("../models/Tenant");
+const { getPlan } = require("../config/plans");
 const {
   getStripeClient,
   getPlanIdForStripePriceId,
   isSubscriptionAccessEnabled,
 } = require("../config/stripeBilling");
+const { isMailerConfigured, sendMail } = require("../utils/mailer");
+
+function getPurchaseRecipient(session) {
+  return (
+    session?.customer_details?.email ||
+    session?.customer_email ||
+    session?.metadata?.adminEmail ||
+    null
+  );
+}
+
+function formatMoneyFromMinorUnits(amount, currency) {
+  if (typeof amount !== "number" || Number.isNaN(amount)) return null;
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: (currency || "usd").toUpperCase(),
+  }).format(amount / 100);
+}
+
+async function sendPurchaseConfirmationEmail({ tenant, session, subscription }) {
+  if (!isMailerConfigured()) return;
+
+  const to = getPurchaseRecipient(session);
+  if (!to) return;
+
+  const plan = getPlan(tenant?.planId || session?.metadata?.planId || null);
+  const planName = plan?.name || "Paid";
+  const price = subscription?.items?.data?.[0]?.price || null;
+  const formattedAmount = formatMoneyFromMinorUnits(price?.unit_amount, price?.currency);
+  const renewalDate = subscription?.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+  const billingUrl = `${(process.env.APP_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/admin/billing`;
+
+  const subject = `TimeStamp purchase confirmed: ${planName}`;
+  const summaryLine = formattedAmount ? `${planName} plan for ${formattedAmount}/month` : `${planName} plan`;
+  const periodLine = renewalDate ? `Your current billing period renews on ${renewalDate}.` : "Your subscription is now active.";
+
+  const text = [
+    `Hello,`,
+    "",
+    `Your TimeStamp purchase is confirmed for ${tenant?.name || "your facility"}.`,
+    `Plan: ${summaryLine}`,
+    periodLine,
+    "",
+    `You can review billing details here: ${billingUrl}`,
+    "",
+    "If you did not authorize this purchase, contact support immediately.",
+  ].join("\n");
+
+  await sendMail({ to, subject, text });
+}
 
 async function findTenantFromEventObject(object) {
   const metadataTenantId = object?.metadata?.tenantId;
@@ -78,6 +136,12 @@ async function handleCheckoutCompleted(session) {
     const stripe = getStripeClient();
     const subscription = await stripe.subscriptions.retrieve(session.subscription);
     await applySubscriptionToTenant(tenant, subscription);
+
+    try {
+      await sendPurchaseConfirmationEmail({ tenant, session, subscription });
+    } catch (error) {
+      console.error("Stripe purchase confirmation email failed:", error);
+    }
   }
 }
 

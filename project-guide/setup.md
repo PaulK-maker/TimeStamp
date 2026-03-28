@@ -28,11 +28,21 @@ Follow these steps to get the TimeStamp project running on your local machine.
    # Optional but recommended
    CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 
+   # Optional mail delivery (needed for tenant OTP emails and purchase confirmation emails)
+   SMTP_HOST=smtp.example.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=mailer@example.com
+   SMTP_PASS=replace_with_mail_password
+   MAIL_FROM=TimeStamp <mailer@example.com>
+
    # Required for Stripe paid plans
    APP_BASE_URL=http://localhost:3000
-   STRIPE_SECRET_KEY=sk_test_replace_me
+   STRIPE_SECRET_KEY=your_stripe_secret_key
    STRIPE_WEBHOOK_SECRET=whsec_replace_me
+   # Standard plan: $10/month recurring price ID from Stripe Dashboard
    STRIPE_PRICE_STANDARD_10=price_replace_standard
+   # Pro plan: $15/month recurring price ID from Stripe Dashboard
    STRIPE_PRICE_PRO_25=price_replace_pro
 
    # Optional explicit Stripe return URLs
@@ -98,3 +108,4 @@ Notes:
 - Paid plans activate only after Stripe webhook confirmation.
 - Free plan selection still activates immediately without Stripe.
 - If checkout returns to the billing page before the webhook finishes, refresh after a few seconds.
+- Purchase confirmation emails require SMTP to be configured in `backend/.env`; otherwise the subscription still activates, but no email is sent.

@@ -224,7 +224,7 @@ Define plans centrally (backend config), with two key dimensions:
 
 Current plan rules:
 
-- Free: up to **1 caregiver**, no `dataManagement`, no `printing`
+- Free: up to **2 caregivers**, no `dataManagement`, no `printing`
 - Standard: **$10/mo**, up to **10 caregivers**, `dataManagement` yes, `printing` no
 - Pro: **$15/mo**, up to **25 caregivers**, `dataManagement` yes, `printing` yes
 
