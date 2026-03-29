@@ -15,3 +15,8 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 ## Project Overview
 
 TimeStamp is a web application designed for staff to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.
+
+### Payroll Note
+
+Future payroll support is planned as a provider-backed integration, not a built-in payroll engine.
+TimeStamp may prepare payroll-ready operational data such as staff records and approved hours, but payroll execution, tax handling, filings, and regulated payroll data should remain with a payroll provider such as Gusto.

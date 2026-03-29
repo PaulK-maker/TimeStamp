@@ -350,14 +350,48 @@ Payroll involves:
 - employee payment regulations
 - highly sensitive personal and banking data
 
-Because of that, TimeStamp should never attempt to implement:
+Because of that, TimeStamp must not implement any of the following in-house:
 
-- custom tax calculations
-- direct payroll disbursement logic
-- in-house filing workflows
-- homemade compliance rules
+- tax calculations
+- net-pay calculations treated as authoritative
+- payroll disbursement logic
+- tax filing workflows
+- withholding workflows
+- direct handling of SSNs
+- direct handling of bank account or routing details
+- storage of tax election data
+- homemade payroll compliance rules
 
-The app can prepare payroll-ready data, but the payroll provider must own the regulated workflows.
+TimeStamp may prepare operational payroll inputs such as:
+
+- approved hours
+- compensation type
+- payroll eligibility
+- worker classification metadata
+- provider linkage IDs
+
+However, a payroll provider such as Gusto must remain responsible for:
+
+- payroll calculation
+- deductions and withholding
+- payment execution
+- filings
+- compliance updates
+- regulated payroll data collection and management
+
+Any local payroll math in TimeStamp must be treated as preview-only and never as the source of truth for employee pay.
+
+#### Compliance rules for implementation
+When payroll work begins, follow these rules:
+
+- Do not store SSNs, routing numbers, bank account numbers, or tax election data in local app models unless a provider integration explicitly requires a secure delegated pattern.
+- Do not write custom tax or withholding logic in backend services.
+- Do not send employee payments directly from this app.
+- Do not treat locally estimated payroll totals as final payroll truth.
+- Do use provider webhooks as the source of truth for payroll run status.
+- Do keep local payroll records limited to operational metadata, audit history, and provider references.
+- Do keep payroll records tenant-scoped and access-controlled.
+- Do document any future payroll fields with a clear reason for why they are stored locally instead of delegated to the provider.
 
 #### Stripe vs payroll
 Stripe and payroll solve different problems.

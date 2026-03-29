@@ -65,3 +65,59 @@ Represents an approved overlay for a `TimeEntry` (effective punch times). This k
 ## Effective punch fields
 
 Some API responses include `effectivePunchIn` and `effectivePunchOut` alongside the raw `punchIn` and `punchOut`. If an approved correction exists, the effective fields are used for reporting while raw punches remain unchanged.
+
+## Future payroll schema boundary
+
+Payroll is planned as a provider-backed integration. The local database should support payroll preparation and auditability without turning TimeStamp into a payroll engine.
+
+### Allowed local payroll data
+
+When payroll work begins, local models may store operational payroll metadata such as:
+
+- approved hours for a payroll period
+- compensation type (`hourly`, `salary`, `contractor`)
+- pay-rate or salary references needed for preview workflows
+- payroll eligibility flags
+- worker classification metadata
+- provider linkage IDs
+- payroll run references, statuses, and audit history
+
+Any locally derived payroll totals should be treated as preview-only and never as the source of truth for employee pay.
+
+### Forbidden local payroll data and logic
+
+Do not store or implement the following in-house unless a provider integration explicitly requires a secure delegated pattern:
+
+- SSNs
+- tax election data
+- bank account numbers
+- routing numbers
+- custom tax logic
+- withholding logic
+- payroll disbursement workflows
+- filing workflows
+- authoritative net-pay calculations
+
+### Recommended future models
+
+If payroll support is added later, prefer a small set of tenant-scoped models and fields:
+
+- `Staff.payrollProfile` for non-regulated operational metadata only
+- `PayrollRun` for one payroll execution attempt for a pay period
+- `PayrollRunItem` for per-worker input snapshots used in a payroll run
+- `PayrollWebhookEvent` for deduplicated provider webhook audit history
+
+These records should stay tenant-scoped, access-controlled, and limited to operational metadata, audit history, and provider references.
+
+### Provider source of truth
+
+A payroll provider such as Gusto should remain responsible for:
+
+- payroll calculation
+- deductions and withholding
+- payment execution
+- filings
+- compliance updates
+- regulated payroll data collection and management
+
+Provider webhooks should be treated as the source of truth for payroll run state once payroll integration begins.
