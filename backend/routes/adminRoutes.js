@@ -10,6 +10,11 @@ const {
   demoteAdminToStaff,
   deleteUser,
 } = require("../controllers/adminControllers");
+const {
+  createPayrollRun,
+  listPayrollRuns,
+  listPayrollWebhookEvents,
+} = require("../controllers/payrollController");
 
 const {
   adminListMissedPunchRequests,
@@ -93,6 +98,30 @@ router.post(
   authorizeRoles("admin"),
   requireFeature("missedPunchReview"),
   adminRejectMissedPunchRequest
+);
+
+router.get(
+  "/payroll-runs",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("dataManagement"),
+  listPayrollRuns
+);
+
+router.post(
+  "/payroll-runs",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("dataManagement"),
+  createPayrollRun
+);
+
+router.get(
+  "/payroll-webhook-events",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("dataManagement"),
+  listPayrollWebhookEvents
 );
 
 module.exports = router;

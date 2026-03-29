@@ -1,6 +1,59 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+const payrollProfileSchema = new mongoose.Schema(
+  {
+    compensationType: {
+      type: String,
+      enum: ["hourly", "salary", "contractor"],
+      default: null,
+    },
+    payRate: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    salaryAmount: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    payrollEligible: {
+      type: Boolean,
+      default: false,
+    },
+    workerClassification: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    employmentStatus: {
+      type: String,
+      enum: ["active", "inactive", "terminated"],
+      default: "active",
+    },
+    payrollProvider: {
+      type: String,
+      enum: ["gusto"],
+      default: null,
+    },
+    payrollProviderEmployeeId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    payrollStartDate: {
+      type: Date,
+      default: null,
+    },
+    payrollEndDate: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 const staffSchema = new mongoose.Schema(
   {
     firstName: {
@@ -48,6 +101,11 @@ const staffSchema = new mongoose.Schema(
       ref: "Tenant",
       default: null,
       index: true,
+    },
+    // Provider-backed payroll metadata only. No SSNs, bank details, or tax elections.
+    payrollProfile: {
+      type: payrollProfileSchema,
+      default: () => ({}),
     },
   },
   { timestamps: true }

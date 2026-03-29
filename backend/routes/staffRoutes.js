@@ -2,12 +2,20 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
-const { requirePlanSelected } = require("../middleware/tenantPlanMiddleware");
-const { createStaff, getStaff } = require("../controllers/caregiverController");
+const {
+	requirePlanSelected,
+	requireFeature,
+} = require("../middleware/tenantPlanMiddleware");
+const {
+	createStaff,
+	getStaff,
+	updateStaffPayrollProfile,
+} = require("../controllers/caregiverController");
 
 router.use(auth, authorizeRoles("admin"), requirePlanSelected());
 
 router.post("/", createStaff);
 router.get("/", getStaff);
+router.put("/:staffId/payroll-profile", requireFeature("dataManagement"), updateStaffPayrollProfile);
 
 module.exports = router;
