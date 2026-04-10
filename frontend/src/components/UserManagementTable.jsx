@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../services/api";
+import { listJobs, updateStaffDefaultJob } from "../services/jobs";
 
 function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -59,6 +60,7 @@ export default function UserManagementTable() {
   const [currentStaffId, setCurrentStaffId] = useState(null);
   const [pendingById, setPendingById] = useState({});
   const [toast, setToast] = useState(null);
+  const [jobs, setJobs] = useState([]);
 
   const showToast = useCallback((type, message) => {
     setToast({ type, message });
@@ -95,10 +97,20 @@ export default function UserManagementTable() {
     }
   }, []);
 
+  const fetchJobs = useCallback(async () => {
+    try {
+      const nextJobs = await listJobs({ includeInactive: true });
+      setJobs(nextJobs);
+    } catch {
+      setJobs([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCurrentUser();
     fetchStaff();
-  }, [fetchCurrentUser, fetchStaff]);
+    fetchJobs();
+  }, [fetchCurrentUser, fetchJobs, fetchStaff]);
 
   const filtered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -252,6 +264,35 @@ export default function UserManagementTable() {
     [clearPending, currentStaffId, setPending, showToast, updateStaffLocal]
   );
 
+  const handleDefaultJobChange = useCallback(
+    async (staffMember, jobId) => {
+      if (!staffMember?._id) return;
+
+      setPending(staffMember._id, { action: "defaultJob" });
+
+      try {
+        const updatedStaff = await updateStaffDefaultJob(staffMember._id, jobId || null);
+        updateStaffLocal(staffMember._id, {
+          defaultJob: updatedStaff?.defaultJob || null,
+        });
+        showToast(
+          "success",
+          updatedStaff?.defaultJob
+            ? `Updated default job for ${staffMember.email}.`
+            : `Cleared default job for ${staffMember.email}.`
+        );
+      } catch (e) {
+        showToast(
+          "error",
+          e?.response?.data?.message || `Failed to update default job for ${staffMember.email}`
+        );
+      } finally {
+        clearPending(staffMember._id);
+      }
+    },
+    [clearPending, setPending, showToast, updateStaffLocal]
+  );
+
   return (
     <div
       style={{
@@ -369,6 +410,7 @@ export default function UserManagementTable() {
               <th align="left">Name</th>
               <th align="left">Email</th>
               <th align="left">Role</th>
+              <th align="left">Default Job</th>
               <th align="left">Status</th>
               <th align="left">Actions</th>
             </tr>
@@ -402,6 +444,27 @@ export default function UserManagementTable() {
                     ) : (
                       <span style={badgeStyle("#f1f3f5", "#343a40")}>staff</span>
                     )}
+                  </td>
+                  <td>
+                    <select
+                      value={c.defaultJob?._id || ""}
+                      onChange={(event) => handleDefaultJobChange(c, event.target.value)}
+                      disabled={Boolean(pending)}
+                      style={{
+                        padding: "6px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #ddd",
+                        minWidth: "180px",
+                      }}
+                    >
+                      <option value="">No default job</option>
+                      {jobs.map((job) => (
+                        <option key={job._id} value={job._id}>
+                          {job.name}
+                          {job.isActive ? "" : " (inactive)"}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
                     {active ? (

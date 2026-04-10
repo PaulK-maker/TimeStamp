@@ -5,6 +5,8 @@ TimeStamp is a web application for staff to log their work hours and for adminis
 ## Project Guide
 
 For detailed information on setup, architecture, and API documentation, please refer to the [Project Guide](project-guide/README.md).
+For payroll rollout planning and production-readiness expectations, see the [Payroll Production Roadmap](project-guide/payroll-production-roadmap.md).
+For manual payroll verification in Postman, see the [Payroll Postman Test Guide](project-guide/payroll-postman-test-guide.md).
 
 ## Quick Start
 

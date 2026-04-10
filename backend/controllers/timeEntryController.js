@@ -1,6 +1,7 @@
 const TimeEntry = require("../models/TimeEntry");
 const mongoose = require("mongoose");
 const Staff = require("../models/staff");
+const Job = require("../models/Job");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 
 const resolveStaffObjectId = async (req) => {
@@ -14,6 +15,17 @@ const resolveStaffObjectId = async (req) => {
     "_id"
   );
   return staffMember?._id?.toString() || null;
+};
+
+const resolveTenantJob = async (tenantId, jobId) => {
+  const normalizedJobId = String(jobId || "").trim();
+  if (!normalizedJobId) return null;
+
+  return Job.findOne({
+    _id: normalizedJobId,
+    tenantId,
+    isActive: true,
+  }).select("_id name gustoJobUuid");
 };
 
 // @desc   Punch IN
@@ -33,7 +45,22 @@ const punchIn = async (req, res) => {
         code: "TENANT_REQUIRED",
       });
     }
-    const { notes } = req.body;
+    const { notes, jobId } = req.body;
+
+    if (!jobId) {
+      return res.status(400).json({
+        message: "jobId is required when punching in",
+        code: "JOB_REQUIRED",
+      });
+    }
+
+    const job = await resolveTenantJob(tenantId, jobId);
+    if (!job) {
+      return res.status(400).json({
+        message: "Selected job is not available for this tenant",
+        code: "JOB_NOT_FOUND",
+      });
+    }
 
     // Check for active shift
     const activeShift = await TimeEntry.findOne({
@@ -51,9 +78,17 @@ const punchIn = async (req, res) => {
     const entry = await TimeEntry.create({
       tenantId,
       staff: staffId,
+      job: job._id,
+      jobSnapshot: {
+        jobId: job._id,
+        name: job.name,
+        gustoJobUuid: job.gustoJobUuid || null,
+      },
       punchIn: new Date(),
       notes,
     });
+
+    await entry.populate("job", "name gustoJobUuid isActive");
 
     res.status(201).json(entry);
   } catch (error) {
@@ -122,7 +157,9 @@ const getMyTimeEntries = async (req, res) => {
 
     const query = { tenantId, staff: staffId };
 
-    const entries = await TimeEntry.find(query).sort({ punchIn: -1 });
+    const entries = await TimeEntry.find(query)
+      .populate("job", "name gustoJobUuid isActive")
+      .sort({ punchIn: -1 });
 
     const entryIds = entries.map((e) => e._id);
     const corrections = await TimeEntryCorrection.find({
@@ -186,7 +223,9 @@ const getTimeEntries = async (req, res) => {
     const entries = await TimeEntry.find({
       tenantId: adminTenantId,
       staff: req.params.staffId,
-    }).sort({ punchIn: -1 });
+    })
+      .populate("job", "name gustoJobUuid isActive")
+      .sort({ punchIn: -1 });
 
     res.json(entries);
   } catch (error) {

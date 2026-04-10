@@ -48,6 +48,23 @@ const Staff = require("../models/staff");
 const Tenant = require("../models/Tenant");
 const requireAuth = require("../middleware/authMiddleware");
 
+async function resolveStaffForAuthUser(baseUser) {
+  const candidate = baseUser?.staffId || baseUser?.id;
+  if (!candidate) return null;
+
+  if (/^[0-9a-fA-F]{24}$/.test(String(candidate))) {
+    return Staff.findById(candidate)
+      .select("_id defaultJob")
+      .populate("defaultJob", "name gustoJobUuid isActive")
+      .lean();
+  }
+
+  return Staff.findOne({ clerkUserId: candidate })
+    .select("_id defaultJob")
+    .populate("defaultJob", "name gustoJobUuid isActive")
+    .lean();
+}
+
 const DEV_BOOTSTRAP_ENABLED =
   process.env.ENABLE_DEV_BOOTSTRAP === "true" &&
   process.env.NODE_ENV !== "production";
@@ -74,11 +91,14 @@ router.get("/me", requireAuth, async (req, res) => {
       tenantName = tenant?.name || null;
     }
 
+    const staffMember = await resolveStaffForAuthUser(baseUser);
+
     return res.json({
       user: {
         ...baseUser,
         tenantCode,
         tenantName,
+        defaultJob: staffMember?.defaultJob || null,
       },
     });
   } catch (err) {

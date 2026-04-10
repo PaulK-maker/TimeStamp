@@ -1,4 +1,5 @@
 const Staff = require("../models/staff");
+const Job = require("../models/Job");
 
 // @desc   Create a new staff member
 // @route  POST /api/staff
@@ -24,7 +25,46 @@ function normalizeOptionalDate(value) {
 
 function normalizeOptionalBoolean(value) {
   if (value === undefined) return undefined;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
   return Boolean(value);
+}
+
+function validatePayrollProfile(profile) {
+  const compensationType = profile.compensationType;
+
+  if (profile.payrollEligible && !compensationType) {
+    const error = new Error(
+      "compensationType is required when payrollEligible is true"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (compensationType === "salary") {
+    if (typeof profile.salaryAmount !== "number") {
+      const error = new Error(
+        "salaryAmount is required when compensationType is salary"
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+    profile.payRate = null;
+  }
+
+  if (compensationType === "hourly" || compensationType === "contractor") {
+    if (typeof profile.payRate !== "number") {
+      const error = new Error(
+        "payRate is required when compensationType is hourly or contractor"
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+    profile.salaryAmount = null;
+  }
 }
 
 function buildPayrollProfileUpdate(currentProfile = {}, input = {}) {
@@ -65,7 +105,7 @@ function buildPayrollProfileUpdate(currentProfile = {}, input = {}) {
     throw error;
   }
 
-  return {
+  const nextProfile = {
     compensationType:
       input.compensationType !== undefined
         ? compensationType
@@ -104,11 +144,37 @@ function buildPayrollProfileUpdate(currentProfile = {}, input = {}) {
         ? payrollEndDate
         : currentProfile.payrollEndDate ?? null,
   };
+
+  validatePayrollProfile(nextProfile);
+
+  return nextProfile;
+}
+
+async function resolveTenantJob({ tenantId, jobId, allowNull = false }) {
+  if (jobId === undefined) return undefined;
+  if (jobId === null || jobId === "") {
+    return allowNull ? null : undefined;
+  }
+
+  const normalizedJobId = String(jobId).trim();
+  const job = await Job.findOne({
+    _id: normalizedJobId,
+    tenantId,
+    isActive: true,
+  }).select("_id name gustoJobUuid isActive");
+
+  if (!job) {
+    const error = new Error("Default job not found for this tenant");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return job;
 }
 
 const createStaff = async (req, res) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, password, defaultJobId } = req.body;
 
     const tenantId = req.user?.tenantId;
     const plan = req.plan;
@@ -131,6 +197,12 @@ const createStaff = async (req, res) => {
         maxStaff: plan.maxStaff,
       });
     }
+
+    const defaultJob = await resolveTenantJob({
+      tenantId,
+      jobId: defaultJobId,
+      allowNull: true,
+    });
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -143,6 +215,7 @@ const createStaff = async (req, res) => {
       password: hashedPassword,
       // role is DB-owned; do not accept from client
       tenantId,
+      defaultJob: defaultJob?._id || null,
     });
     
     // Hide password in response
@@ -166,9 +239,11 @@ const getStaff = async (req, res) => {
       });
     }
 
-    const staffMembers = await Staff.find({ tenantId }).select(
-      "firstName lastName email role clerkUserId isActive payrollProfile createdAt updatedAt"
-    );
+    const staffMembers = await Staff.find({ tenantId })
+      .select(
+        "firstName lastName email role clerkUserId isActive payrollProfile defaultJob createdAt updatedAt"
+      )
+      .populate("defaultJob", "name gustoJobUuid isActive");
     res.json(staffMembers);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -220,8 +295,56 @@ const updateStaffPayrollProfile = async (req, res) => {
   }
 };
 
+const updateStaffDefaultJob = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const staffId = (req.params?.staffId || "").trim();
+    if (!staffId) {
+      return res.status(400).json({ message: "staffId is required" });
+    }
+
+    const staffMember = await Staff.findOne({ _id: staffId, tenantId });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    const nextDefaultJob = await resolveTenantJob({
+      tenantId,
+      jobId: req.body?.jobId,
+      allowNull: true,
+    });
+
+    staffMember.defaultJob = nextDefaultJob?._id || null;
+    await staffMember.save();
+    await staffMember.populate("defaultJob", "name gustoJobUuid isActive");
+
+    return res.json({
+      message: nextDefaultJob ? "Default job updated" : "Default job cleared",
+      staff: {
+        id: staffMember._id.toString(),
+        firstName: staffMember.firstName,
+        lastName: staffMember.lastName,
+        email: staffMember.email,
+        role: staffMember.role,
+        defaultJob: staffMember.defaultJob || null,
+      },
+    });
+  } catch (error) {
+    const status = error?.statusCode || 500;
+    return res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createStaff,
   getStaff,
   updateStaffPayrollProfile,
+  updateStaffDefaultJob,
 };

@@ -10,6 +10,7 @@ const {
 	createStaff,
 	getStaff,
 	updateStaffPayrollProfile,
+	updateStaffDefaultJob,
 } = require("../controllers/caregiverController");
 
 router.use(auth, authorizeRoles("admin"), requirePlanSelected());
@@ -17,5 +18,6 @@ router.use(auth, authorizeRoles("admin"), requirePlanSelected());
 router.post("/", createStaff);
 router.get("/", getStaff);
 router.put("/:staffId/payroll-profile", requireFeature("dataManagement"), updateStaffPayrollProfile);
+router.put("/:staffId/default-job", requireFeature("dataManagement"), updateStaffDefaultJob);
 
 module.exports = router;

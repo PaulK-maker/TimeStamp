@@ -254,6 +254,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import JobsManagementPanel from "../components/JobsManagementPanel";
 import UserManagementTable from "../components/UserManagementTable";
 import api from "../services/api";
 import { getMe } from "../services/me";
@@ -529,6 +530,20 @@ const AdminDashboard = () => {
               🖨️ Print Report
             </button>
 
+
+            <button
+              onClick={() => navigate("/admin/payroll")}
+              style={{
+                padding: "8px 16px",
+                marginRight: "10px",
+                backgroundColor: "#111827",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+              }}
+            >
+              Payroll
+            </button>
             <button
               onClick={() => navigate("/staff")}
               style={{
@@ -591,6 +606,7 @@ const AdminDashboard = () => {
                 <tr>
                   <th align="left">Staff</th>
                   <th align="left">Email</th>
+                  <th align="left">Job</th>
                   <th align="left">Punch In</th>
                   <th align="left">Punch Out</th>
                   <th align="right">Hours</th>
@@ -612,6 +628,7 @@ const AdminDashboard = () => {
                         {log.staff?.lastName}
                       </td>
                       <td>{log.staff?.email}</td>
+                      <td>{log.jobSnapshot?.name || log.job?.name || "-"}</td>
                       <td>{formatDateTime(log.punchIn)}</td>
                       <td>{formatDateTime(log.punchOut)}</td>
                       <td align="right">
@@ -624,6 +641,8 @@ const AdminDashboard = () => {
             </table>
           )}
         </div>
+
+        <JobsManagementPanel />
 
         {/* User Management */}
         <UserManagementTable />

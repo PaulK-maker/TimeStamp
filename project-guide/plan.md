@@ -339,6 +339,54 @@ Example future flow:
 TimeStamp should remain the source of truth for time capture and admin workflows.
 Gusto should remain the source of truth for payroll execution, tax handling, and compliance.
 
+#### Clear path to full payroll integration
+
+TimeStamp currently supports the payroll foundation only:
+
+- staff payroll profile metadata
+- draft payroll runs
+- payroll run item snapshots
+- gross-pay previews
+- duplicate payroll-run prevention
+- tenant-scoped payroll data
+
+TimeStamp is not yet production-ready for live payroll execution.
+
+What is still undone:
+
+- provider API integration for payroll submission
+- provider credential and environment setup
+- webhook endpoint and signature verification
+- provider-driven payroll status synchronization
+- admin payroll UI for review and submission
+- production monitoring, alerting, and support runbooks
+- backend automated tests for payroll workflows
+- sandbox and pilot validation with the provider
+
+Expected path to production:
+
+1. Keep TimeStamp as the operational payroll-prep layer only.
+2. Add provider submission for draft payroll runs.
+3. Add webhook processing so provider events become the source of truth for payroll status.
+4. Add admin UI for review, submission, and payroll history.
+5. Add monitoring, error handling, runbooks, and release controls.
+6. Validate end-to-end in provider sandbox before any production rollout.
+
+Production expectation:
+
+- TimeStamp prepares and submits payroll inputs.
+- A provider such as Gusto performs payroll calculation, deductions, payment execution, filings, and regulated data handling.
+- TimeStamp stores local audit history, provider references, and payroll status only.
+
+Policy boundary:
+
+- Do not store SSNs, bank account numbers, routing numbers, or tax election data locally.
+- Do not implement tax logic, withholding logic, payment disbursement, or filing workflows in-house.
+- Treat local payroll totals as preview-only until confirmed by the provider.
+
+For detailed manual verification, see `project-guide/payroll-postman-test-guide.md`.
+For the phased production delivery plan, see `project-guide/payroll-production-roadmap.md`.
+
 #### Critical compliance boundary
 Do not build payroll logic directly in this app.
 
@@ -464,7 +512,7 @@ Potential premium features:
 However, the implementation priority should remain architecture and compliance first, not feature marketing.
 
 #### Current scope boundary
-Payroll is not currently implemented.
+Payroll foundation is partially implemented.
 
 The app today supports:
 
@@ -472,14 +520,17 @@ The app today supports:
 - tenant scoping
 - time tracking
 - billing via Stripe
+- payroll profile metadata for staff
+- draft payroll runs with worker snapshots and gross-pay previews
 
 The app does not yet support:
 
 - payroll provider integration
-- payroll runs
 - payroll webhooks
 - employee tax workflows
 - bank or SSN handling
+
+Manual verification steps for this payroll foundation are documented in `project-guide/payroll-postman-test-guide.md`.
 
 ---
 

@@ -85,6 +85,7 @@ exports.getAllTimeLogs = async (req, res) => {
 
     const logs = await TimeEntry.find(query)
       .populate("staff", "firstName lastName email role")
+      .populate("job", "name gustoJobUuid isActive")
       .sort({ punchIn: -1 });
 
     const entryIds = logs.map((l) => l._id);

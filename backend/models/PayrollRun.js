@@ -76,7 +76,10 @@ const payrollRunSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-payrollRunSchema.index({ tenantId: 1, payPeriodStart: 1, payPeriodEnd: 1 });
+payrollRunSchema.index(
+  { tenantId: 1, payPeriodStart: 1, payPeriodEnd: 1 },
+  { unique: true }
+);
 
 module.exports =
   mongoose.models.PayrollRun ||

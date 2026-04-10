@@ -12,15 +12,45 @@ const payrollProfileSchema = new mongoose.Schema(
       type: Number,
       default: null,
       min: 0,
+      validate: {
+        validator(value) {
+          if (
+            this.compensationType === "hourly" ||
+            this.compensationType === "contractor"
+          ) {
+            return typeof value === "number" && value >= 0;
+          }
+
+          return value === null || value === undefined || value >= 0;
+        },
+        message: "payRate is required for hourly and contractor payroll profiles",
+      },
     },
     salaryAmount: {
       type: Number,
       default: null,
       min: 0,
+      validate: {
+        validator(value) {
+          if (this.compensationType === "salary") {
+            return typeof value === "number" && value >= 0;
+          }
+
+          return value === null || value === undefined || value >= 0;
+        },
+        message: "salaryAmount is required for salary payroll profiles",
+      },
     },
     payrollEligible: {
       type: Boolean,
       default: false,
+      validate: {
+        validator(value) {
+          if (!value) return true;
+          return ["hourly", "salary", "contractor"].includes(this.compensationType);
+        },
+        message: "compensationType is required when payrollEligible is true",
+      },
     },
     workerClassification: {
       type: String,
@@ -101,6 +131,11 @@ const staffSchema = new mongoose.Schema(
       ref: "Tenant",
       default: null,
       index: true,
+    },
+    defaultJob: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
     },
     // Provider-backed payroll metadata only. No SSNs, bank details, or tax elections.
     payrollProfile: {

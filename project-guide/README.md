@@ -11,6 +11,8 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 - [Database Schema](database.md): Information about the MongoDB models.
 - [Schema Analysis](schema-analysis.md): Technical deep-dive into schema changes for new features.
 - [Implementation Plan](plan.md): Roadmap for Clerk integration, tenant billing, future payroll integration through a provider such as Gusto, and geofencing features.
+- [Payroll Production Roadmap](payroll-production-roadmap.md): Clear path from the current payroll foundation to a production-ready provider-backed payroll integration.
+- [Payroll Postman Test Guide](payroll-postman-test-guide.md): Manual verification steps for payroll profile validation and draft payroll run creation.
 
 ## Project Overview
 

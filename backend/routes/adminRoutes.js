@@ -14,6 +14,7 @@ const {
   createPayrollRun,
   listPayrollRuns,
   listPayrollWebhookEvents,
+  submitPayrollRun,
 } = require("../controllers/payrollController");
 
 const {
@@ -114,6 +115,14 @@ router.post(
   authorizeRoles("admin"),
   requireFeature("dataManagement"),
   createPayrollRun
+);
+
+router.post(
+  "/payroll-runs/:runId/submit",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("dataManagement"),
+  submitPayrollRun
 );
 
 router.get(

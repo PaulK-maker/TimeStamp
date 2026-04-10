@@ -15,7 +15,9 @@ const billingRoutes = require("./routes/billingRoutes");
 const tenantRoutes = require("./routes/tenantRoutes");
 const tenantOtpRoutes = require("./routes/tenantOtpRoutes");
 const superadminRoutes = require("./routes/superadminRoutes");
+const jobRoutes = require("./routes/jobRoutes");
 const { stripeWebhookHandler } = require("./controllers/stripeWebhookController");
+const { handlePayrollWebhook } = require("./controllers/payrollController");
 
 const app = express();
 
@@ -61,6 +63,7 @@ app.use(cors({
 
 // 3. Body parsers for JSON and URL-encoded requests
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+app.post("/api/payroll/webhook", express.raw({ type: "application/json" }), handlePayrollWebhook);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -238,6 +241,7 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/tenant", tenantRoutes);
 app.use("/api/tenant/otp", tenantOtpRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/jobs", jobRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 app.use("/api/missed-punch", missedPunchRoutes);
 app.use("/api/superadmin", superadminRoutes);

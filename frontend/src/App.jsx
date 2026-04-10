@@ -47,6 +47,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import CalendarPage from "./pages/CalendarPage";
 import AdminPrintReportPage from "./pages/AdminPrintReportPage";
 import AdminBillingPage from "./pages/AdminBillingPage";
+import AdminPayrollPage from "./pages/AdminPayrollPage";
 import TenantSetupPage from "./pages/TenantSetupPage";
 import RequireSuperadmin from "./components/RequireSuperadmin";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
@@ -136,6 +137,15 @@ function App() {
           element={
             <RequireAdminPlanSelected>
               <AdminPrintReportPage />
+            </RequireAdminPlanSelected>
+          }
+        />
+
+        <Route
+          path="/admin/payroll"
+          element={
+            <RequireAdminPlanSelected>
+              <AdminPayrollPage />
             </RequireAdminPlanSelected>
           }
         />

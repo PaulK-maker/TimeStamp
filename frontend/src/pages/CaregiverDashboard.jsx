@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import Header from "../components/Header";
 import api from "../services/api";
+import { listMyJobs } from "../services/jobs";
 import { getMe } from "../services/me";
 
 const CaregiverDashboard = () => {
@@ -13,6 +14,9 @@ const CaregiverDashboard = () => {
   const [error, setError] = useState("");
   const [totalHours, setTotalHours] = useState(0);
   const [currentlyClockedIn, setCurrentlyClockedIn] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [jobsLoading, setJobsLoading] = useState(false);
 
   const [missedPunchRequests, setMissedPunchRequests] = useState([]);
   const [requestingEntryId, setRequestingEntryId] = useState(null);
@@ -85,6 +89,21 @@ const CaregiverDashboard = () => {
     }
   }, []);
 
+  const fetchMyJobs = useCallback(async () => {
+    try {
+      setJobsLoading(true);
+      const { jobs: availableJobs, defaultJobId } = await listMyJobs();
+      setJobs(availableJobs);
+      setSelectedJobId((current) => current || defaultJobId || availableJobs[0]?._id || "");
+    } catch (err) {
+      setJobs([]);
+      setSelectedJobId("");
+      setError(err?.response?.data?.message || "Failed to load jobs");
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
+
   const fetchMyLogs = useCallback(async () => {
     try {
       setError("");
@@ -109,8 +128,14 @@ const CaregiverDashboard = () => {
   const handlePunchIn = async () => {
     try {
       setError("");
+
+      if (!selectedJobId) {
+        setError("Select a job before punching in.");
+        return;
+      }
+
       setLoading(true);
-      await api.post("/timeclock/punch-in", {});
+      await api.post("/timeclock/punch-in", { jobId: selectedJobId });
       await fetchMyLogs();
     } catch (err) {
       console.error("PUNCH IN ERROR:", err);
@@ -145,7 +170,8 @@ const CaregiverDashboard = () => {
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     fetchMyLogs();
-  }, [fetchMyLogs, isLoaded, isSignedIn]);
+    fetchMyJobs();
+  }, [fetchMyJobs, fetchMyLogs, isLoaded, isSignedIn]);
 
   const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : "-");
 
@@ -315,18 +341,54 @@ const CaregiverDashboard = () => {
             textAlign: "center",
           }}
         >
+          <div style={{ marginBottom: 16, textAlign: "left" }}>
+            <label style={{ display: "block", fontSize: 13, color: "#6b7280", marginBottom: 6 }}>
+              Job for next shift
+            </label>
+            <select
+              value={selectedJobId}
+              onChange={(event) => setSelectedJobId(event.target.value)}
+              disabled={jobsLoading || currentlyClockedIn || loading || jobs.length === 0}
+              style={{
+                width: "100%",
+                maxWidth: 360,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+              }}
+            >
+              <option value="">Select a job</option>
+              {jobs.map((job) => (
+                <option key={job._id} value={job._id}>
+                  {job.name}
+                </option>
+              ))}
+            </select>
+            {jobs.length === 0 && !jobsLoading ? (
+              <div style={{ marginTop: 8, color: "#b45309", fontSize: 13 }}>
+                No active jobs are configured for this facility yet. Ask an admin to add one.
+              </div>
+            ) : null}
+          </div>
+
           <div style={{ display: "flex", justifyContent: "center", gap: "20px" }}>
             <button
               onClick={handlePunchIn}
-              disabled={loading || currentlyClockedIn}
+              disabled={loading || currentlyClockedIn || !selectedJobId || jobs.length === 0}
               style={{
                 padding: "15px 30px",
-                backgroundColor: loading || currentlyClockedIn ? "#ccc" : "#4CAF50",
+                backgroundColor:
+                  loading || currentlyClockedIn || !selectedJobId || jobs.length === 0
+                    ? "#ccc"
+                    : "#4CAF50",
                 color: "white",
                 border: "none",
                 borderRadius: "8px",
                 fontSize: "16px",
-                cursor: loading || currentlyClockedIn ? "not-allowed" : "pointer",
+                cursor:
+                  loading || currentlyClockedIn || !selectedJobId || jobs.length === 0
+                    ? "not-allowed"
+                    : "pointer",
               }}
             >
               {loading ? "Processing..." : "🟢 Punch In"}
@@ -360,6 +422,7 @@ const CaregiverDashboard = () => {
               <thead>
                 <tr style={{ backgroundColor: "#f8f9fa" }}>
                   <th style={{ padding: "12px", textAlign: "left" }}>Date</th>
+                  <th style={{ padding: "12px", textAlign: "left" }}>Job</th>
                   <th style={{ padding: "12px", textAlign: "left" }}>Punch In</th>
                   <th style={{ padding: "12px", textAlign: "left" }}>Punch Out</th>
                   <th style={{ padding: "12px", textAlign: "right" }}>Hours</th>
@@ -389,6 +452,9 @@ const CaregiverDashboard = () => {
                         {log.punchIn
                           ? new Date(log.punchIn).toLocaleDateString()
                           : "-"}
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        {log.jobSnapshot?.name || log.job?.name || "-"}
                       </td>
                       <td style={{ padding: "12px" }}>{formatDateTime(log.punchIn)}</td>
                       <td style={{ padding: "12px" }}>

@@ -1,5 +1,26 @@
 const mongoose = require("mongoose");
 
+const timeEntryJobSnapshotSchema = new mongoose.Schema(
+  {
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+    },
+    name: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    gustoJobUuid: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 const timeEntrySchema = new mongoose.Schema(
   {
     tenantId: {
@@ -12,6 +33,16 @@ const timeEntrySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Staff",
       required: true,
+    },
+    job: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+      index: true,
+    },
+    jobSnapshot: {
+      type: timeEntryJobSnapshotSchema,
+      default: () => ({}),
     },
     punchIn: {
       type: Date,
@@ -28,6 +59,9 @@ const timeEntrySchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+timeEntrySchema.index({ tenantId: 1, staff: 1, job: 1, punchIn: -1 });
+
 module.exports =
   mongoose.models.TimeEntry ||
   mongoose.model("TimeEntry", timeEntrySchema);
