@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Header from "../components/Header";
+import StaffPayrollProfilePanel from "../components/StaffPayrollProfilePanel";
 import {
   createPayrollRun,
   listPayrollRuns,
@@ -225,6 +226,8 @@ export default function AdminPayrollPage() {
             ) : null}
           </section>
         </div>
+
+        <StaffPayrollProfilePanel />
 
         <section style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8, padding: 16, marginTop: 20 }}>
           <h2 style={{ marginTop: 0 }}>Recent Payroll Webhook Events</h2>
