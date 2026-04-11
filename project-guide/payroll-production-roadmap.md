@@ -202,13 +202,11 @@ Exit criteria:
 
 As of the current repository state, the following items are still missing for full payroll integration:
 
-- provider credential and environment setup (Gusto sandbox then production credentials)
-- webhook subscription creation and verification automation against Gusto APIs
+- webhook subscription creation and verification against Gusto APIs (requires a public URL, e.g. via ngrok or deployed backend)
 - richer payroll failure reconciliation using Gusto payroll fetch / processing-request details
-- staff payroll profile management UI (admins can edit payroll profiles but no dedicated page exists)
 - production monitoring, alerting, and support runbooks
 - backend automated tests for payroll workflows
-- sandbox and pilot validation with the provider
+- full sandbox end-to-end payroll run submission and pilot validation
 
 **Completed since initial roadmap:**
 - exact Gusto submission API contract locked (Bearer token, PUT `.../submit`, 202 Accepted)
@@ -218,6 +216,70 @@ As of the current repository state, the following items are still missing for fu
 - admin jobs management (create, update, archive, link Gusto job_uuid)
 - staff default job assignment with required job selection at punch-in
 - Gusto webhook exact contract: verification-token handshake, HMAC SHA-256 signature, full event reconciliation
+- staff payroll profile management UI added (`StaffPayrollProfilePanel`, `frontend/src/services/staff.js`, `AdminPayrollPage` updated)
+- Gusto sandbox OAuth2 authorization code flow completed and verified
+- Gusto sandbox credentials wired into `backend/.env` (`GUSTO_COMPANY_ACCESS_TOKEN`, `GUSTO_COMPANY_ID`, `GUSTO_REFRESH_TOKEN`, `GUSTO_API_BASE_URL`, `PAYROLL_PROVIDER_MODE=live`)
+- Gusto sandbox company confirmed via `GET /v1/companies` — company name: Timestamp1, UUID: `007905e9-9c9c-4ed7-8239-573706a9f65f`
+- `X-Gusto-API-Version: 2026-02-01` header added to all Gusto API requests in `gustoProvider.js`
+- token refresh flow confirmed working via `grant_type=refresh_token`
+
+## Gusto Sandbox Credential Setup Procedure
+
+This section documents how sandbox credentials were obtained for future reference or re-setup.
+
+### Prerequisites
+- A Gusto developer account at https://dev.gusto.com
+- A demo app created with a redirect URI of `http://localhost:5001/api/auth/gusto/callback`
+- The backend running locally at port 5001
+
+### Step 1 — Authorization Code Flow
+Visit this URL in a browser (replace `CLIENT_ID`):
+```
+https://app.gusto-demo.com/oauth/authorize?client_id=CLIENT_ID&redirect_uri=http://localhost:5001/api/auth/gusto/callback&response_type=code&scope=public
+```
+After authorizing, the browser redirects to localhost and the backend returns a "Route not found" message containing `?code=XXXX`. Copy only the code value.
+
+### Step 2 — Exchange Code for Tokens
+Run within 60 seconds of getting the code (codes expire quickly):
+```
+curl.exe --ssl-no-revoke -X POST "https://api.gusto-demo.com/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code&code=CODE&client_id=CLIENT_ID&client_secret=CLIENT_SECRET&redirect_uri=http%3A%2F%2Flocalhost%3A5001%2Fapi%2Fauth%2Fgusto%2Fcallback"
+```
+Response includes `access_token` (valid ~2 hours) and `refresh_token` (long-lived).
+
+### Step 3 — Token Refresh (when access token expires)
+```
+curl.exe --ssl-no-revoke -X POST "https://api.gusto-demo.com/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token&refresh_token=REFRESH_TOKEN&client_id=CLIENT_ID&client_secret=CLIENT_SECRET"
+```
+Each refresh returns a new `access_token` AND a new `refresh_token`. Update both in `.env`.
+
+### Step 4 — Verify Connection
+```
+curl.exe --ssl-no-revoke \
+  -H "Authorization: Bearer ACCESS_TOKEN" \
+  -H "X-Gusto-API-Version: 2026-02-01" \
+  "https://api.gusto-demo.com/v1/companies"
+```
+Returns company JSON confirming credentials are valid.
+
+### Required .env Variables
+```
+GUSTO_COMPANY_ACCESS_TOKEN=
+GUSTO_COMPANY_ID=007905e9-9c9c-4ed7-8239-573706a9f65f
+GUSTO_REFRESH_TOKEN=
+GUSTO_API_BASE_URL=https://api.gusto-demo.com
+PAYROLL_PROVIDER_MODE=live
+```
+
+### Notes
+- `client_credentials` grant type is NOT supported by Gusto — always use authorization code or refresh token flow
+- Use `--ssl-no-revoke` on Windows to avoid certificate revocation check errors
+- Use `curl.exe` (not `curl`) in PowerShell to avoid alias conflicts
+- `GUSTO_COMPANY_ID` is the UUID from `GET /v1/companies`, NOT from the dev.gusto.com dashboard URL
+- Minimum required API version for this app: `2026-02-01`
 
 ## Recommended Release Sequence
 

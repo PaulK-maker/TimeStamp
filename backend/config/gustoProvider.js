@@ -167,6 +167,7 @@ function getGustoHeaders(config, extraHeaders = {}) {
   return {
     Accept: "application/json",
     Authorization: `Bearer ${config.companyAccessToken}`,
+    "X-Gusto-API-Version": "2026-02-01",
     ...extraHeaders,
   };
 }
