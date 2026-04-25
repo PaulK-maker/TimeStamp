@@ -106,9 +106,10 @@ async function applySubscriptionToTenant(tenant, subscription) {
   tenant.stripeSubscriptionId = subscription.id || tenant.stripeSubscriptionId;
   tenant.stripePriceId = priceId;
   tenant.subscriptionStatus = subscriptionStatus;
-  tenant.currentPeriodEnd = subscription.current_period_end
+  const periodEndDate = subscription.current_period_end
     ? new Date(subscription.current_period_end * 1000)
     : null;
+  tenant.currentPeriodEnd = periodEndDate && !isNaN(periodEndDate) ? periodEndDate : null;
 
   if (mappedPlanId) {
     tenant.planId = mappedPlanId;
