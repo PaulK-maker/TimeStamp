@@ -19,6 +19,9 @@ TimeStamp already supports:
 - weekly overtime-aware distribution into Gusto hourly compensation rows based on local approved punch data
 - minimal admin payroll UI for draft creation, submission, and webhook visibility
 - manual verification via the payroll Postman guide
+- live partner-managed company onboarding via Gusto API and Gusto Flows (employee full onboarding + company 8/9 steps complete as of April 30, 2026)
+- idempotent end-to-end automation script for onboarding and payroll submission (`backend/scripts/gustoOnboardAndSubmit.js`)
+- OAuth2 refresh token rotation handling: new token auto-saved to `.env` on every API call
 
 TimeStamp does not yet support:
 
@@ -129,6 +132,25 @@ Exit criteria:
 - a draft run can be submitted successfully in sandbox
 - rejected submissions return actionable errors
 - local runs transition from `draft` to a submitted/provider-tracked state
+
+#### Phase 1 Progress — April 30, 2026
+
+**Status: In Progress — one blocker remaining**
+
+Completed:
+- [x] Partner-managed Gusto sandbox company created (`44196a95-66a8-428e-86ea-9cb1183b966d`) — required for all payroll write access
+- [x] Test employee (Alexander Hamilton) fully onboarded: home address, work address, job, compensation ($24.50/hr), federal taxes, state taxes (CA), bank account, W-4 and direct deposit forms signed
+- [x] Company onboarding 8 of 9 steps complete: addresses, industry (NAICS 621610), bank info (routing 021000021), pay schedule (weekly), CA state taxes (bypassed EDD UI via API), all company forms signed
+- [x] Off-cycle payroll created and populated with 80 regular hours — UUID `fef1d6d6-6903-4642-b2e5-419b7a0d002e` (period: 2026-04-29 → 2026-05-12)
+- [x] `backend/scripts/gustoOnboardAndSubmit.js` — 14-step idempotent automation script; handles token rotation, skips completed steps, proceeds through create → prepare → update → calculate → submit
+
+Blocked:
+- [ ] Company bank account `verify_bank_info` — microdeposits in transit (no sandbox simulation endpoint exists in API version `2026-02-01`). Unblocks automatically when deposits arrive.
+
+Next actions after unblock:
+1. Open verify_bank_info Gusto Flow → enter deposit amounts
+2. Re-run `node scripts/gustoOnboardAndSubmit.js` → calculates and submits payroll
+3. Capture `providerPayrollId` from response → update MongoDB `PayrollRun` document
 
 ### Phase 2: Webhooks And State Synchronization
 
