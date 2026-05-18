@@ -18,6 +18,17 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 
 TimeStamp is a web application designed for staff to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.
 
+## Recent Changes
+
+### May 18, 2026
+- **Caregiver Dashboard** — missed punch request form converted to a modal dialog with shift context, status badges for all request states (pending/rejected/approved/withdrawn), and a full request history table
+- **`backend/scripts/seedJobs.js`** — seed script to insert sample jobs (Homecare Staff, Homecare Manager, Admin) for any tenant; useful for local testing without a paid plan
+
+### Jobs Quick Reference
+- Admins create/manage jobs: Admin Dashboard → 🧩 Jobs section
+- For local dev seeding: `cd backend && node scripts/seedJobs.js`
+- Gusto job UUID link is optional — only needed when submitting payroll hours to Gusto
+
 ### Payroll Note
 
 Future payroll support is planned as a provider-backed integration, not a built-in payroll engine.

@@ -246,6 +246,56 @@ app.use("/api/timeclock", timeClockRoutes);
 app.use("/api/missed-punch", missedPunchRoutes);
 app.use("/api/superadmin", superadminRoutes);
 
+// Temporary: Gusto OAuth callback handler for token generation
+app.get("/api/auth/gusto/callback", async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.status(400).send("No authorization code received.");
+
+  const https = require("https");
+  const clientId = "j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I";
+  const clientSecret = "i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U";
+  const redirectUri = "http://localhost:5001/api/auth/gusto/callback";
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+    code,
+    grant_type: "authorization_code",
+  }).toString();
+
+  const options = {
+    hostname: "api.gusto-demo.com",
+    path: "/oauth/token",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(body),
+    },
+  };
+
+  const tokenReq = https.request(options, (tokenRes) => {
+    let data = "";
+    tokenRes.on("data", (chunk) => { data += chunk; });
+    tokenRes.on("end", () => {
+      try {
+        const parsed = JSON.parse(data);
+        console.log("\n✅ GUSTO TOKEN RESPONSE:", JSON.stringify(parsed, null, 2));
+        if (parsed.access_token) {
+          res.send(`<h2>Success!</h2><p>Copy this access token into your .env as GUSTO_COMPANY_ACCESS_TOKEN:</p><pre style="word-break:break-all">${parsed.access_token}</pre><p>Refresh token: <pre>${parsed.refresh_token || "none"}</pre></p>`);
+        } else {
+          res.status(400).send(`<h2>Token exchange failed</h2><pre>${data}</pre>`);
+        }
+      } catch (e) {
+        res.status(500).send(`<h2>Parse error</h2><pre>${data}</pre>`);
+      }
+    });
+  });
+  tokenReq.on("error", (err) => res.status(500).send(err.message));
+  tokenReq.write(body);
+  tokenReq.end();
+});
+
 // 7. 404 handler (LAST - catches everything else)
 app.use((req, res) => {
   res.status(404).json({ 

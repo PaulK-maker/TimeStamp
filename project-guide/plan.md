@@ -4,7 +4,31 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 
 ---
 
-## Current Sprint Status (Updated: April 30, 2026)
+## Current Sprint Status (Updated: May 18, 2026)
+
+### UI — May 18, 2026
+- [x] **Caregiver missed punch request form** — redesigned as a proper modal dialog (replaces disconnected bottom panel)
+  - Modal shows shift context (punch-in time + job name) so staff know which shift they are editing
+  - Reason field upgraded from single-line input to textarea
+  - Error messages styled inline in red inside the modal; backdrop click closes it
+- [x] **Missed punch status badges** — all four states now shown in the shifts table:
+  - ⏳ Pending — amber badge + "Withdraw" button
+  - ✕ Rejected — red badge + "Re-submit" button
+  - — Withdrawn/Cancelled — shows "+  Request punch-out" button again
+  - No request + missing punch-out — shows "+ Request punch-out" button
+- [x] **My Punch-Out Requests history section** — appears below the shifts table showing shift date, requested time, color-coded status badge, and submission date for all past requests
+- [x] **`backend/scripts/seedJobs.js`** — new idempotent seed script to insert sample jobs for testing without needing a paid plan
+  - Inserts: Homecare Staff, Homecare Manager, Admin
+  - Uses native MongoDB collection API to bypass Mongoose 9 pre-validate hook compatibility
+  - Safe to re-run; skips jobs that already exist
+  - Successfully seeded to all tenants
+
+### Jobs Architecture (clarified May 18, 2026)
+- Jobs are **TimeStamp-managed**, not synced from Gusto/payroll
+- Admins create jobs through the Admin Dashboard → 🧩 Jobs panel
+- The `gustoJobUuid` field is an optional manual link to a Gusto job position (only needed for payroll submission)
+- Creating jobs via UI requires `dataManagement` feature — available on Standard ($10/mo) and Pro ($15/mo) plans only
+- For dev/testing: run `cd backend && node scripts/seedJobs.js`
 
 ### Stripe Billing — Nearly Done
 - [x] Checkout works end-to-end

@@ -19,7 +19,7 @@ const CaregiverDashboard = () => {
   const [jobsLoading, setJobsLoading] = useState(false);
 
   const [missedPunchRequests, setMissedPunchRequests] = useState([]);
-  const [requestingEntryId, setRequestingEntryId] = useState(null);
+  const [requestingEntry, setRequestingEntry] = useState(null);
   const [requestedTimeLocal, setRequestedTimeLocal] = useState("");
   const [requestReason, setRequestReason] = useState("");
   const [requestStatusMsg, setRequestStatusMsg] = useState("");
@@ -192,24 +192,23 @@ const CaregiverDashboard = () => {
 
   const openMissedPunchRequest = (entry) => {
     setRequestStatusMsg("");
-    setRequestingEntryId(entry?._id || null);
+    setRequestingEntry(entry || null);
     setRequestedTimeLocal(toLocalDateTimeValue(new Date()));
     setRequestReason("");
   };
 
   const submitMissedPunchRequest = async () => {
-    if (!requestingEntryId) return;
+    if (!requestingEntry) return;
     setRequestBusy(true);
     setRequestStatusMsg("");
     try {
       await api.post("/missed-punch/requests", {
-        timeEntryId: requestingEntryId,
+        timeEntryId: requestingEntry._id,
         missingField: "punchOut",
         requestedTime: new Date(requestedTimeLocal).toISOString(),
         reason: requestReason,
       });
-      setRequestStatusMsg("Request submitted.");
-      setRequestingEntryId(null);
+      setRequestingEntry(null);
       await fetchMyRequests();
       await fetchMyLogs();
     } catch (err) {
@@ -444,7 +443,11 @@ const CaregiverDashboard = () => {
                   const isCorrected = Boolean(log.effectivePunchOut && !log.punchOut);
                   const isMissingPunchOut = !log.punchOut && !log.effectivePunchOut;
                   const latestRequest = latestRequestByEntryId[String(log._id)];
-                  const hasPending = latestRequest?.status === "pending";
+                  const reqStatus = latestRequest?.status;
+                  const hasPending = reqStatus === "pending";
+                  const isRejected = reqStatus === "rejected";
+                  const isCancelled = reqStatus === "cancelled";
+                  const canRequestNew = isMissingPunchOut && (!latestRequest || isCancelled || isRejected);
 
                   return (
                     <tr key={log._id} style={{ borderBottom: "1px solid #eee" }}>
@@ -469,38 +472,64 @@ const CaregiverDashboard = () => {
 
                         {isMissingPunchOut && (
                           <div style={{ marginTop: 8 }}>
-                            {hasPending ? (
-                              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                                <span style={{ color: "#6b7280", fontSize: 12 }}>
-                                  Missed punch request pending
+                            {hasPending && (
+                              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                  background: "#fef3c7", color: "#92400e",
+                                  fontSize: 12, fontWeight: 600, padding: "3px 8px",
+                                  borderRadius: 99, border: "1px solid #fde68a",
+                                }}>
+                                  ⏳ Pending review
                                 </span>
                                 <button
                                   onClick={() => cancelMissedPunchRequest(latestRequest?._id)}
                                   disabled={requestBusy}
                                   style={{
-                                    padding: "6px 10px",
-                                    borderRadius: 6,
-                                    border: "1px solid #e5e7eb",
-                                    background: "white",
-                                    cursor: requestBusy ? "not-allowed" : "pointer",
+                                    padding: "3px 10px", borderRadius: 6, fontSize: 12,
+                                    border: "1px solid #e5e7eb", background: "white",
+                                    cursor: requestBusy ? "not-allowed" : "pointer", color: "#374151",
                                   }}
                                 >
-                                  Cancel
+                                  Withdraw
                                 </button>
                               </div>
-                            ) : (
+                            )}
+                            {isRejected && (
+                              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                  background: "#fee2e2", color: "#991b1b",
+                                  fontSize: 12, fontWeight: 600, padding: "3px 8px",
+                                  borderRadius: 99, border: "1px solid #fca5a5",
+                                }}>
+                                  ✕ Rejected
+                                </span>
+                                <button
+                                  onClick={() => openMissedPunchRequest(log)}
+                                  disabled={requestBusy}
+                                  style={{
+                                    padding: "3px 10px", borderRadius: 6, fontSize: 12,
+                                    border: "1px solid #e5e7eb", background: "white",
+                                    cursor: requestBusy ? "not-allowed" : "pointer", color: "#374151",
+                                  }}
+                                >
+                                  Re-submit
+                                </button>
+                              </div>
+                            )}
+                            {canRequestNew && !isRejected && (
                               <button
                                 onClick={() => openMissedPunchRequest(log)}
                                 disabled={requestBusy}
                                 style={{
-                                  padding: "6px 10px",
-                                  borderRadius: 6,
-                                  border: "1px solid #e5e7eb",
-                                  background: "white",
+                                  padding: "5px 12px", borderRadius: 6, fontSize: 13,
+                                  border: "1px solid #d1d5db", background: "white",
                                   cursor: requestBusy ? "not-allowed" : "pointer",
+                                  color: "#1d4ed8", fontWeight: 500,
                                 }}
                               >
-                                Request missed punch-out
+                                + Request punch-out
                               </button>
                             )}
                           </div>
@@ -517,80 +546,167 @@ const CaregiverDashboard = () => {
           )}
         </div>
 
-        {requestingEntryId && (
-          <div
-            style={{
-              marginTop: 16,
-              background: "white",
-              padding: 16,
-              borderRadius: 10,
-              border: "1px solid #eee",
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>Request missed punch-out</h3>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <label>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>Requested punch-out time</div>
-                <input
-                  type="datetime-local"
-                  value={requestedTimeLocal}
-                  onChange={(e) => setRequestedTimeLocal(e.target.value)}
-                  style={{ padding: 8, borderRadius: 6, border: "1px solid #e5e7eb" }}
-                />
+        {/* Request History */}
+        {missedPunchRequests.length > 0 && (
+          <div style={{ background: "white", padding: "20px", borderRadius: "10px", marginTop: 20 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>My Punch-Out Requests</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f8f9fa" }}>
+                  <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>Shift Date</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>Requested Time</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>Status</th>
+                  <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missedPunchRequests.map((req) => {
+                  const statusStyles = {
+                    pending:   { bg: "#fef3c7", color: "#92400e", border: "#fde68a", label: "⏳ Pending" },
+                    approved:  { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7", label: "✓ Approved" },
+                    rejected:  { bg: "#fee2e2", color: "#991b1b", border: "#fca5a5", label: "✕ Rejected" },
+                    cancelled: { bg: "#f3f4f6", color: "#6b7280", border: "#e5e7eb", label: "— Withdrawn" },
+                  };
+                  const s = statusStyles[req.status] || statusStyles.cancelled;
+                  const shiftDate = req.timeEntry?.punchIn
+                    ? new Date(req.timeEntry.punchIn).toLocaleDateString()
+                    : "-";
+                  return (
+                    <tr key={req._id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "10px 12px" }}>{shiftDate}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {req.requestedTime ? new Date(req.requestedTime).toLocaleString() : "-"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{
+                          display: "inline-block", padding: "3px 10px", borderRadius: 99,
+                          fontSize: 12, fontWeight: 600,
+                          background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+                        }}>
+                          {s.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#6b7280", fontSize: 13 }}>
+                        {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Missed Punch Request Modal */}
+      {requestingEntry && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !requestBusy) setRequestingEntry(null); }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{
+            background: "white", borderRadius: 14, padding: 28,
+            width: "100%", maxWidth: 460,
+            boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: 18, color: "#111827" }}>
+              Request Missed Punch-Out
+            </h3>
+
+            {/* Shift context */}
+            <div style={{
+              background: "#f8fafc", borderRadius: 8, padding: "10px 14px",
+              marginBottom: 20, border: "1px solid #e2e8f0",
+            }}>
+              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Shift</div>
+              <div style={{ fontWeight: 600, color: "#1e293b" }}>
+                {requestingEntry.punchIn ? new Date(requestingEntry.punchIn).toLocaleString() : "-"}
+              </div>
+              {(requestingEntry.jobSnapshot?.name || requestingEntry.job?.name) && (
+                <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
+                  {requestingEntry.jobSnapshot?.name || requestingEntry.job?.name}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                Requested punch-out time
               </label>
-              <label style={{ flex: "1 1 320px" }}>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>Reason (optional)</div>
-                <input
-                  type="text"
-                  value={requestReason}
-                  onChange={(e) => setRequestReason(e.target.value)}
-                  placeholder="Forgot to punch out, device issue, etc."
-                  style={{
-                    width: "100%",
-                    padding: 8,
-                    borderRadius: 6,
-                    border: "1px solid #e5e7eb",
-                  }}
-                />
+              <input
+                type="datetime-local"
+                value={requestedTimeLocal}
+                onChange={(e) => setRequestedTimeLocal(e.target.value)}
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  borderRadius: 8, border: "1px solid #d1d5db",
+                  fontSize: 14, boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                Reason <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional)</span>
               </label>
+              <textarea
+                rows={3}
+                value={requestReason}
+                onChange={(e) => setRequestReason(e.target.value)}
+                placeholder="Forgot to punch out, device issue, emergency, etc."
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  borderRadius: 8, border: "1px solid #d1d5db",
+                  fontSize: 14, resize: "vertical", boxSizing: "border-box",
+                  fontFamily: "inherit",
+                }}
+              />
             </div>
 
             {requestStatusMsg && (
-              <div style={{ marginTop: 10, color: "#6b7280" }}>{requestStatusMsg}</div>
+              <div style={{
+                marginBottom: 16, padding: "10px 14px",
+                background: "#fee2e2", color: "#991b1b",
+                borderRadius: 8, fontSize: 14,
+              }}>
+                {requestStatusMsg}
+              </div>
             )}
 
-            <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10 }}>
               <button
                 onClick={submitMissedPunchRequest}
                 disabled={requestBusy || !requestedTimeLocal}
                 style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: requestBusy ? "#cbd5e1" : "#2563eb",
-                  color: "white",
-                  cursor: requestBusy ? "not-allowed" : "pointer",
+                  flex: 1, padding: "11px 0", borderRadius: 8, border: "none",
+                  background: requestBusy || !requestedTimeLocal ? "#94a3b8" : "#2563eb",
+                  color: "white", fontWeight: 600, fontSize: 15,
+                  cursor: requestBusy || !requestedTimeLocal ? "not-allowed" : "pointer",
                 }}
               >
-                Submit request
+                {requestBusy ? "Submitting…" : "Submit Request"}
               </button>
               <button
-                onClick={() => setRequestingEntryId(null)}
+                onClick={() => setRequestingEntry(null)}
                 disabled={requestBusy}
                 style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  background: "white",
+                  padding: "11px 20px", borderRadius: 8,
+                  border: "1px solid #d1d5db", background: "white",
+                  fontWeight: 500, fontSize: 15, color: "#374151",
                   cursor: requestBusy ? "not-allowed" : "pointer",
                 }}
               >
-                Close
+                Cancel
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

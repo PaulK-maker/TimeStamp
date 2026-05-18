@@ -2,9 +2,11 @@
 
 Use this sequence to manually verify the current payroll foundation behavior.
 
+> **Note:** Backend runs on port **5001**, not 5000.
+
 ## Collection Variables
 
-- `baseUrl` = `http://localhost:5000`
+- `baseUrl` = `http://localhost:5001`
 - `adminEmail` = your admin email
 - `adminPassword` = your admin password
 - `token` = blank initially
@@ -115,6 +117,57 @@ Use this sequence to manually verify the current payroll foundation behavior.
    - Header: `Authorization: Bearer {{token}}`
    - Expected result: `200` with the created run still in `draft` status.
 
+10. `Submit Payroll Run (Mock Mode)`
+    - Set `PAYROLL_PROVIDER_MODE=mock` in `backend/.env` and restart backend.
+    - `POST {{baseUrl}}/api/admin/payroll-runs/{{runId}}/submit`
+    - Header: `Authorization: Bearer {{token}}`
+    - Expected result: `202` with `status: submitted` and a `mock-payroll-...` providerPayrollId.
+
+## Phase A Results (Validated 2026-04-29)
+
+All 10 steps above passed in mock mode:
+- Login, auth, staff listing, profile validation, run creation, duplicate detection, listing, and mock submission all work correctly.
+- `providerPayrollId` is set to `mock-payroll-{runId}-{timestamp}` in mock mode.
+
+## Phase B: Live Gusto Submission
+
+### Architecture Finding (2026-04-29)
+
+Gusto's Embedded Payroll API has two authentication levels:
+
+1. **System access token** — obtained via `POST /oauth/token` with `grant_type=system_access` using `client_id` + `client_secret`. Used to create partner-managed companies.
+2. **Company access token** — scoped to a specific company. Required for all payroll operations (prepare, update, calculate, submit).
+
+**Critical requirement:** The company must be created through `POST /v1/partner_managed_companies` (using the system token), NOT through the Gusto web UI. Companies created via the UI return `401` on payroll write endpoints (`/prepare`, `/calculate`, `/submit`) because your app is not recognized as their "partner."
+
+### Production Onboarding Flow (Required Before Live Payroll Works)
+
+When onboarding a new tenant to Gusto payroll:
+
+```
+1. POST /oauth/token  (grant_type=system_access) → get systemToken
+2. POST /v1/partner_managed_companies (using systemToken) → get company_uuid + company_access_token
+3. Store company_uuid as tenant's GUSTO_COMPANY_ID
+4. Store company_access_token as tenant's GUSTO_COMPANY_ACCESS_TOKEN
+5. Complete company onboarding: location, employees, tax info, pay schedule
+6. Now payroll prepare/calculate/submit all work with the company_access_token
+```
+
+### Sandbox State (2026-04-29)
+
+- **System access token**: works (`grant_type=system_access` returns valid token)
+- **Partner-managed test company**: `44196a95-66a8-428e-86ea-9cb1183b966d` (stored in `.env` as `GUSTO_PARTNER_COMPANY_UUID`)
+- **UI-created demo company** (`007905e9-...` / "Timestamp1"): payroll write endpoints return `401` (expected — not partner-managed)
+
+### Next Steps for Full Live Test
+
+1. Add a job/compensation to employee `1d8a8091-...` in the partner company
+2. Add home address, work address, tax withholdings, and bank account
+3. Set up a pay schedule OR create an off-cycle payroll
+4. Update `GUSTO_COMPANY_ID` and `GUSTO_COMPANY_ACCESS_TOKEN` to the partner company values
+5. Run steps 7 → 10 with `PAYROLL_PROVIDER_MODE=live`
+6. Verify `202` response with real Gusto `payroll_uuid` as `providerPayrollId`
+
 ## Expected Status Summary
 
 - Step 4: `400`
@@ -123,6 +176,7 @@ Use this sequence to manually verify the current payroll foundation behavior.
 - Step 7: `201`
 - Step 8: `409`
 - Step 9: `200`
+- Step 10 (mock): `202`
 
 ## Common Blockers
 
