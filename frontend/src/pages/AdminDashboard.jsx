@@ -273,6 +273,12 @@ const AdminDashboard = () => {
   const [mpLoading, setMpLoading] = useState(false);
   const [mpError, setMpError] = useState("");
 
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState("");
+  const [inviteCopyCode, setInviteCopyCode] = useState("");
+
   const navigate = useNavigate();
 
   const formatTenantCode = useCallback((code) => {
@@ -457,6 +463,35 @@ const AdminDashboard = () => {
   /* =======================
      Helpers
   ======================= */
+  /* =======================
+     Invite staff
+  ======================= */
+  const handleSendInviteOtp = useCallback(async () => {
+    setInviteStatus("");
+    setInviteCopyCode("");
+    setInviteBusy(true);
+    try {
+      const res = await api.post("/tenant/otp/send-join", { toEmail: inviteEmail.trim() });
+      if (res.data?.code === "MAIL_NOT_CONFIGURED" && res.data?.inviteCode) {
+        setInviteCopyCode(res.data.inviteCode);
+        setInviteStatus("Email isn't configured — copy the code below and send it manually.");
+      } else {
+        setInviteStatus(res.data?.message || "Invite code sent!");
+      }
+    } catch (err) {
+      setInviteStatus(err?.response?.data?.message || "Failed to send invite code.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }, [inviteEmail]);
+
+  const closeInviteModal = useCallback(() => {
+    setInviteOpen(false);
+    setInviteEmail("");
+    setInviteStatus("");
+    setInviteCopyCode("");
+  }, []);
+
   const formatDateTime = (date) =>
     date ? new Date(date).toLocaleString() : "-";
 
@@ -556,6 +591,20 @@ const AdminDashboard = () => {
               }}
             >
               Switch to Staff View
+            </button>
+
+            <button
+              onClick={() => setInviteOpen(true)}
+              style={{
+                padding: "8px 16px",
+                marginRight: "10px",
+                backgroundColor: "#059669",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+              }}
+            >
+              ✉️ Invite Staff
             </button>
 
             <button
@@ -786,6 +835,134 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Invite Staff Modal */}
+      {inviteOpen && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !inviteBusy) closeInviteModal(); }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{
+            background: "white", borderRadius: 14, padding: 28,
+            width: "100%", maxWidth: 480,
+            boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
+          }}>
+            <h3 style={{ margin: "0 0 6px 0", fontSize: 20, color: "#111827" }}>Invite Staff Member</h3>
+            <p style={{ margin: "0 0 20px 0", color: "#6b7280", fontSize: 14 }}>
+              A 6-digit join code will be emailed to the staff member. They sign up with that
+              same email address, then enter the code to join this facility.
+            </p>
+
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+              Staff email address
+            </label>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => { setInviteEmail(e.target.value); setInviteStatus(""); setInviteCopyCode(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && inviteEmail.trim() && !inviteBusy) handleSendInviteOtp(); }}
+                placeholder="staff@facility.com"
+                style={{
+                  flex: 1, padding: "10px 12px",
+                  borderRadius: 8, border: "1px solid #d1d5db",
+                  fontSize: 14,
+                }}
+              />
+              <button
+                onClick={handleSendInviteOtp}
+                disabled={inviteBusy || !inviteEmail.trim()}
+                style={{
+                  padding: "10px 18px", borderRadius: 8, border: "none",
+                  background: inviteBusy || !inviteEmail.trim() ? "#94a3b8" : "#059669",
+                  color: "white", fontWeight: 600, fontSize: 14,
+                  cursor: inviteBusy || !inviteEmail.trim() ? "not-allowed" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {inviteBusy ? "Sending…" : "Send Code"}
+              </button>
+            </div>
+
+            {inviteStatus && (
+              <div style={{
+                padding: "10px 14px", borderRadius: 8, marginBottom: 14, fontSize: 14,
+                background: inviteCopyCode ? "#fefce8" : "#f0fdf4",
+                color: inviteCopyCode ? "#713f12" : "#166534",
+                border: inviteCopyCode ? "1px solid #fde68a" : "1px solid #bbf7d0",
+              }}>
+                {inviteStatus}
+              </div>
+            )}
+
+            {inviteCopyCode && (
+              <div style={{
+                background: "#fff8e6", border: "1px solid #ffe7b8",
+                borderRadius: 10, padding: "14px 16px", marginBottom: 16,
+              }}>
+                <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>Share this code with the staff member:</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{
+                    fontFamily: "monospace", fontSize: 28, fontWeight: 800,
+                    letterSpacing: 6, color: "#111827",
+                  }}>
+                    {inviteCopyCode}
+                  </span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(inviteCopyCode).catch(() => {})}
+                    style={{
+                      padding: "6px 14px", borderRadius: 6, border: "1px solid #d1d5db",
+                      background: "white", fontSize: 13, cursor: "pointer", color: "#374151",
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ background: "#f8fafc", borderRadius: 8, padding: "12px 14px", marginBottom: 20, fontSize: 13, color: "#475569" }}>
+              <strong style={{ color: "#1e293b" }}>Staff onboarding steps:</strong>
+              <ol style={{ margin: "6px 0 0 0", paddingLeft: 18, lineHeight: 1.7 }}>
+                <li>Staff signs up at the app using this exact email address</li>
+                <li>After sign-in they land on the Join screen</li>
+                <li>They enter the 6-digit code → joined and ready to clock in</li>
+              </ol>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              {!inviteCopyCode && !inviteStatus && (
+                <button
+                  onClick={closeInviteModal}
+                  disabled={inviteBusy}
+                  style={{
+                    padding: "10px 20px", borderRadius: 8,
+                    border: "1px solid #d1d5db", background: "white",
+                    fontSize: 14, color: "#374151", cursor: inviteBusy ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={closeInviteModal}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: inviteStatus ? "#059669" : "#6b7280",
+                  color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                {inviteStatus ? "Done" : "Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
