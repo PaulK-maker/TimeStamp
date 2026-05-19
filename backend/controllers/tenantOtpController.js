@@ -217,13 +217,19 @@ exports.sendJoinOtp = async (req, res) => {
     const text = createOtpEmailText({ code, purpose: "TENANT_JOIN_INVITE", tenantName: tenant.name });
 
     if (isMailerConfigured()) {
-      await sendMail({ to: toEmail, subject, text });
-      return res.json({ message: "Invite code sent", toEmail, expiresAt });
+      try {
+        await sendMail({ to: toEmail, subject, text });
+        return res.json({ message: "Invite code sent", toEmail, expiresAt });
+      } catch (mailErr) {
+        // SMTP is configured but delivery failed (e.g. TLS, auth, network).
+        // Fall through to copy-code so admin can still invite the staff member.
+        console.warn("sendJoinOtp: mail delivery failed, falling back to copy-code.", mailErr?.message || mailErr);
+      }
     }
 
-    // Copy-code fallback for non-technical setups when SMTP isn't configured.
+    // Copy-code fallback: SMTP not configured OR delivery failed.
     return res.json({
-      message: "Email is not configured on the server. Copy this code and share it with the user.",
+      message: "Email could not be sent. Copy this code and share it with the user.",
       code: "MAIL_NOT_CONFIGURED",
       toEmail,
       inviteCode: code,
