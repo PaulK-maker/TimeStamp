@@ -20,6 +20,14 @@ TimeStamp is a web application designed for staff to log their time and for admi
 
 ## Recent Changes
 
+### May 21, 2026
+- **Admin Dashboard — Invite Staff** — new "✉️ Invite Staff" button on all admin dashboards; opens a modal to email a join OTP; falls back to copy-code if SMTP is unavailable
+- **Invite API SMTP fix** — `tenantOtpController.js` now catches SMTP errors instead of returning 500; copy-code always shown on success or delivery failure
+- **Gusto company bank verified** — used sandbox `send_test_deposits` API to instantly simulate microdeposits and verify the company bank account (`12a5f771-3113-404c-a6eb-f2824d478d74`)
+- **`backend/scripts/verifyCompanyBank.js`** — new one-shot script that automates sandbox bank verification via the Gusto `send_test_deposits` → `verify` API flow
+- **`backend/scripts/gustoOnboardAndSubmit.js`** — updated pay period dates (2026-05-19 → 2026-05-25, check 2026-05-28); added fallback to reuse existing open payrolls when creation returns 422
+- **Gusto payroll loaded** — off-cycle payroll `aff2706c-4342-4fbc-9429-cd22e25e9c9d` created and loaded with 80 regular hours; blocked at calculate step pending Gusto company approval (`needs_approval` blocker — requires Gusto risk team review)
+
 ### May 18, 2026
 - **Caregiver Dashboard** — missed punch request form converted to a modal dialog with shift context, status badges for all request states (pending/rejected/approved/withdrawn), and a full request history table
 - **`backend/scripts/seedJobs.js`** — seed script to insert sample jobs (Homecare Staff, Homecare Manager, Admin) for any tenant; useful for local testing without a paid plan

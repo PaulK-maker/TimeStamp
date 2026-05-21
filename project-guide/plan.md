@@ -4,7 +4,11 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 
 ---
 
-## Current Sprint Status (Updated: May 18, 2026)
+## Current Sprint Status (Updated: May 21, 2026)
+
+### UI — May 21, 2026
+- [x] **Admin Dashboard — Invite Staff button + modal** — green "✉️ Invite Staff" button added to all admin dashboards; modal collects email, calls `POST /tenant/otp/send-join`, shows OTP copy-code on success with onboarding instructions
+- [x] **Invite API 500 fix** — `tenantOtpController.js` now wraps `sendMail()` in try/catch; any SMTP delivery failure (including TLS cert errors) falls through to copy-code response instead of returning 500
 
 ### UI — May 18, 2026
 - [x] **Caregiver missed punch request form** — redesigned as a proper modal dialog (replaces disconnected bottom panel)
@@ -44,11 +48,13 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [x] `PAYROLL_PROVIDER_MODE=live` pointed at `https://api.gusto-demo.com` (sandbox)
 - [x] Partner-managed company created (`44196a95-66a8-428e-86ea-9cb1183b966d`) — required for payroll write access; UI-created companies return 401 on all write operations
 - [x] Employee Alexander Hamilton fully onboarded: home address, work address, job (Caregiver), compensation ($24.50/hr), federal taxes (W-4 Single), state taxes (CA), bank account, W-4 + direct deposit forms signed via Gusto Flow
-- [x] Company onboarding 8/9 steps complete: addresses (3 locations), industry (NAICS 621610), bank info (routing 021000021), pay schedule (weekly, first pay 2026-05-15), state taxes (CA — EDD bypassed via API), all forms signed
-- [x] Off-cycle payroll created and loaded with 80 regular hours — UUID `fef1d6d6-6903-4642-b2e5-419b7a0d002e` (period: 2026-04-29 → 2026-05-12, check date: 2026-05-15)
-- [x] Idempotent automation script built: `backend/scripts/gustoOnboardAndSubmit.js` — auto-saves refresh token to `.env` on every run, skips already-completed steps
-- [ ] **BLOCKED:** Company bank `verify_bank_info` — sandbox microdeposits in transit (~1-2 days). Once received: open verify_bank_info Gusto Flow → enter the two deposit amounts → re-run script
-- [ ] After bank verified: re-run script to calculate + submit payroll; capture `providerPayrollId` → update MongoDB PayrollRun document
+- [x] Company onboarding complete: addresses (3 locations), industry (NAICS 621610), bank info (routing 021000021), pay schedule (weekly), state taxes (CA — EDD bypassed via API), all forms signed
+- [x] **Company bank account verified** — used sandbox `POST .../send_test_deposits` endpoint to instantly simulate microdeposits, then `PUT .../verify` to confirm; bank UUID `12a5f771-3113-404c-a6eb-f2824d478d74` is now `verified`
+- [x] `backend/scripts/verifyCompanyBank.js` — new one-shot script that automates the send_test_deposits → verify flow for sandbox bank verification
+- [x] Off-cycle payroll created and loaded with 80 regular hours — UUID `aff2706c-4342-4fbc-9429-cd22e25e9c9d` (period: 2026-05-19 → 2026-05-25, check date: 2026-05-28)
+- [x] `backend/scripts/gustoOnboardAndSubmit.js` — updated with current dates; now falls back to existing open payroll if creation is skipped (prevents 422 loop)
+- [ ] **BLOCKED: `needs_approval`** — Gusto risk team must approve the partner-managed company before payroll can calculate or submit. Resolution: email `embedded@gusto.com` with company UUID `44196a95-66a8-428e-86ea-9cb1183b966d` and request sandbox company approval. Once approved, Gusto fires `company.approved` webhook and the open payroll `aff2706c` (already loaded with 80 hrs) can be calculated and submitted immediately
+- [ ] After company approved: re-run `node scripts/gustoOnboardAndSubmit.js` → calculate + submit → capture `providerPayrollId` → update MongoDB PayrollRun document
 - [ ] Gusto webhook fires back and updates `PayrollRun.status` in MongoDB
 - [ ] Admin UI for payroll review and submission (currently automation script only)
 
@@ -74,8 +80,8 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 | Test Employee | Alexander Hamilton — `1d8a8091-fd7b-49d4-8a29-8261ed6ba5f3` |
 | Employee Job UUID | `c4665ec0-d169-44f8-a5d0-87ff56c6dc9e` (Caregiver, $24.50/hr, Nonexempt) |
 | Employee Bank Account | `7db10b05-46fd-44ea-a6d4-5a9c67b49846` |
-| Company Bank Account | `3c305b5c-5800-4eec-bcc7-06b144ac0a05` (routing: 021000021, status: awaiting_deposits) |
-| Active Payroll UUID | `fef1d6d6-6903-4642-b2e5-419b7a0d002e` (2026-04-29 → 2026-05-12, check: 2026-05-15) |
+| Company Bank Account | `12a5f771-3113-404c-a6eb-f2824d478d74` (routing: 021000021, status: **verified**) |
+| Active Payroll UUID | `aff2706c-4342-4fbc-9429-cd22e25e9c9d` (2026-05-19 → 2026-05-25, check: 2026-05-28, 80 hrs loaded, unprocessed) |
 
 ### Critical Lessons Learned
 - Only **partner-managed companies** (`POST /v1/partner_managed_companies`) support payroll write endpoints — UI-created companies return 401 on all write operations
@@ -86,7 +92,7 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - `employee_form_signing` resets after company `state_setup` changes — must re-sign after any company state configuration change
 - `flow_type` only accepts a single value per API call — comma-separated values silently fail
 - `sign_all_forms` Gusto Flow must run **after** `state_setup` is complete, otherwise new state forms will invalidate the signing
-- No sandbox API endpoint exists to simulate microdeposits in API version `2026-02-01` — bank verification requires genuine waiting
+- Sandbox bank verification CAN be automated: `POST /v1/companies/{uuid}/company_bank_accounts/{bank_uuid}/send_test_deposits` returns `{deposit_1, deposit_2}`, then `PUT .../verify` with those amounts — instant verification. See `backend/scripts/verifyCompanyBank.js`
 
 ### Payroll Submission Sequence (Future Reference)
 ```
@@ -99,11 +105,12 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 7. Save payroll_uuid → MongoDB PayrollRun.providerPayrollId, status = "submitted"
 ```
 
-### Resuming After Bank Verification
-When sandbox microdeposits arrive:
-1. `POST /v1/companies/{uuid}/flows` with `{ flow_type: "verify_bank_info" }` → open URL → enter deposit amounts
-2. Confirm `onboarding_completed: true` via `GET /v1/companies/{uuid}/onboarding_status`
-3. Run the automation script — it will skip all completed steps and proceed to calculate + submit:
+### Resuming After Gusto Company Approval
+Bank is verified. The only remaining blocker is `needs_approval` (Gusto risk review).
+
+1. Email `embedded@gusto.com` — subject: "Sandbox company approval needed", include UUID `44196a95-66a8-428e-86ea-9cb1183b966d`
+2. Wait for `company.approved` webhook (Gusto internal review)
+3. Once approved, run the automation script — it will find the existing open payroll (`aff2706c`) and proceed directly to calculate + submit:
 ```bash
 cd backend
 node scripts/gustoOnboardAndSubmit.js

@@ -31,11 +31,12 @@ const REFRESH_TOKEN = process.env.GUSTO_PARTNER_COMPANY_REFRESH;
 const EMPLOYEE_UUID = "1d8a8091-fd7b-49d4-8a29-8261ed6ba5f3"; // Alexander Hamilton
 const WORK_LOCATION_UUID = "3c93887f-d377-4d49-aea0-a751cbdd8336";
 const EXISTING_JOB_UUID = "c4665ec0-d169-44f8-a5d0-87ff56c6dc9e"; // created last run
+const EXISTING_PAYROLL_UUID = "fef1d6d6-6903-4642-b2e5-419b7a0d002e"; // open unprocessed
 
 // Payroll period — use today + a few days for check date
-const PAY_START = "2026-04-29";
-const PAY_END = "2026-05-12";
-const CHECK_DATE = "2026-05-15";
+const PAY_START = "2026-05-19";
+const PAY_END = "2026-05-25";
+const CHECK_DATE = "2026-05-28";
 
 // Hours to submit for this employee
 const REGULAR_HOURS = "80.000";
@@ -442,9 +443,27 @@ async function main() {
   // Step 8: Check onboarding status
   await step("8. Check employee onboarding status", checkOnboardingStatus);
 
-  // Step 9: Create off-cycle payroll
+  // Step 9: Create off-cycle payroll (or reuse existing open one)
   let payroll;
   payroll = await step("9. Create off-cycle payroll", createOffCyclePayroll);
+  if (!payroll) {
+    // Creation was skipped — find any existing open (unprocessed) off-cycle payroll
+    console.log("  -> Searching for an existing open payroll...");
+    try {
+      const r = await axios.get(
+        `https://api.gusto-demo.com/v1/companies/${COMPANY_UUID}/payrolls?processing_statuses=unprocessed&payroll_types=off_cycle`,
+        { headers: headers() }
+      );
+      const open = (r.data?.payrolls || r.data || []);
+      if (open.length) {
+        payroll = open[0];
+        payroll.payroll_uuid = payroll.payroll_uuid || payroll.uuid;
+        console.log(`  -> Reusing existing payroll: ${payroll.payroll_uuid} (check: ${payroll.check_date})`);
+      }
+    } catch (findErr) {
+      console.error("  -> Could not look up existing payrolls:", findErr.response?.data || findErr.message);
+    }
+  }
   if (!payroll) {
     throw new Error("Failed to create or find a payroll for this period.");
   }
