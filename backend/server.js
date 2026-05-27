@@ -30,6 +30,8 @@ const allowedOrigins = new Set([
   "http://localhost:3000",
   "http://localhost:3001",
   "https://timecapcha-frontend.onrender.com",
+  "https://timecapcha.app",
+  "https://www.timecapcha.app",
 ]);
 
 const extraAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")

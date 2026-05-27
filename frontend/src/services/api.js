@@ -46,7 +46,7 @@ const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL ||
   (typeof window !== "undefined" && window.location.hostname === "localhost"
     ? "http://localhost:5001"
-    : "https://timecapcha.onrender.com");
+    : "https://api.timecapcha.app");
 
 // Create axios instance with base URL
 const api = axios.create({
