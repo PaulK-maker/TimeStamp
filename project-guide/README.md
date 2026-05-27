@@ -20,6 +20,10 @@ TimeStamp is a web application designed for staff to log their time and for admi
 
 ## Recent Changes
 
+### May 26, 2026
+- **Gusto sandbox company approved** — Gusto Embedded Support (Tatiana) confirmed sandbox company `44196a95` is approved
+- **Payroll SUBMITTED** — `providerPayrollId: fef1d6d6-6903-4642-b2e5-419b7a0d002e` — Gross $1,960.00 · Taxes $548.52 · Net $1,411.48 (80 hrs × $24.50); status 202 Accepted
+
 ### May 21, 2026
 - **Admin Dashboard — Invite Staff** — new "✉️ Invite Staff" button on all admin dashboards; opens a modal to email a join OTP; falls back to copy-code if SMTP is unavailable
 - **Invite API SMTP fix** — `tenantOtpController.js` now catches SMTP errors instead of returning 500; copy-code always shown on success or delivery failure

@@ -4,7 +4,7 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 
 ---
 
-## Current Sprint Status (Updated: May 21, 2026)
+## Current Sprint Status (Updated: May 26, 2026)
 
 ### UI — May 21, 2026
 - [x] **Admin Dashboard — Invite Staff button + modal** — green "✉️ Invite Staff" button added to all admin dashboards; modal collects email, calls `POST /tenant/otp/send-join`, shows OTP copy-code on success with onboarding instructions
@@ -42,19 +42,22 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [ ] Cancel remaining duplicate subscriptions (2 still active non-cancelling: `sub_1TFpzsGlYnDvUBQGCt6kS7Ie`, `sub_1TEjo6GlYnDvUBQGzi0Pepra`) — keep only `sub_1TPtGnGlYnDvUBQGZEBYCRGr`
 - [ ] Do one clean end-to-end checkout test on deployed app to confirm webhook auto-activates plan without manual script
 
-### Gusto Payroll — Phase B In Progress (Sandbox)
+### Gusto Payroll — Phase B COMPLETE ✅ (Sandbox)
 - [x] Gusto sandbox credentials in backend `.env` and Render environment
 - [x] Draft payroll runs, payroll profiles, and webhook ingestion built
 - [x] `PAYROLL_PROVIDER_MODE=live` pointed at `https://api.gusto-demo.com` (sandbox)
-- [x] Partner-managed company created (`44196a95-66a8-428e-86ea-9cb1183b966d`) — required for payroll write access; UI-created companies return 401 on all write operations
+- [x] Partner-managed company created (`44196a95-66a8-428e-86ea-9cb1183b966d`) — required for payroll write access
 - [x] Employee Alexander Hamilton fully onboarded: home address, work address, job (Caregiver), compensation ($24.50/hr), federal taxes (W-4 Single), state taxes (CA), bank account, W-4 + direct deposit forms signed via Gusto Flow
-- [x] Company onboarding complete: addresses (3 locations), industry (NAICS 621610), bank info (routing 021000021), pay schedule (weekly), state taxes (CA — EDD bypassed via API), all forms signed
-- [x] **Company bank account verified** — used sandbox `POST .../send_test_deposits` endpoint to instantly simulate microdeposits, then `PUT .../verify` to confirm; bank UUID `12a5f771-3113-404c-a6eb-f2824d478d74` is now `verified`
-- [x] `backend/scripts/verifyCompanyBank.js` — new one-shot script that automates the send_test_deposits → verify flow for sandbox bank verification
-- [x] Off-cycle payroll created and loaded with 80 regular hours — UUID `aff2706c-4342-4fbc-9429-cd22e25e9c9d` (period: 2026-05-19 → 2026-05-25, check date: 2026-05-28)
-- [x] `backend/scripts/gustoOnboardAndSubmit.js` — updated with current dates; now falls back to existing open payroll if creation is skipped (prevents 422 loop)
-- [ ] **BLOCKED: `needs_approval`** — Gusto risk team must approve the partner-managed company before payroll can calculate or submit. Resolution: email `embedded@gusto.com` with company UUID `44196a95-66a8-428e-86ea-9cb1183b966d` and request sandbox company approval. Once approved, Gusto fires `company.approved` webhook and the open payroll `aff2706c` (already loaded with 80 hrs) can be calculated and submitted immediately
-- [ ] After company approved: re-run `node scripts/gustoOnboardAndSubmit.js` → calculate + submit → capture `providerPayrollId` → update MongoDB PayrollRun document
+- [x] Company onboarding complete: addresses, industry (NAICS 621610), bank info (routing 021000021), pay schedule (weekly), state taxes (CA), all forms signed
+- [x] Company bank account verified — UUID `12a5f771-3113-404c-a6eb-f2824d478d74` (status: `verified`)
+- [x] `backend/scripts/verifyCompanyBank.js` — automates sandbox bank verification via `send_test_deposits` → `verify`
+- [x] `backend/scripts/gustoOnboardAndSubmit.js` — idempotent 14-step script; falls back to existing open payrolls; auto-saves refresh token
+- [x] **Gusto sandbox company approved** (May 26, 2026) — Tatiana / Gusto Embedded Support confirmed approval via email
+- [x] **Payroll SUBMITTED** — `providerPayrollId: fef1d6d6-6903-4642-b2e5-419b7a0d002e`
+  - Period: 2026-04-29 → 2026-05-12, check date: 2026-05-15
+  - Gross: **$1,960.00** (80 hrs × $24.50) · Taxes: **$548.52** · Net: **$1,411.48**
+  - Submitted status: 202 Accepted
+- [ ] Update MongoDB `PayrollRun` document with `providerPayrollId = fef1d6d6-6903-4642-b2e5-419b7a0d002e` and `status = "submitted"`
 - [ ] Gusto webhook fires back and updates `PayrollRun.status` in MongoDB
 - [ ] Admin UI for payroll review and submission (currently automation script only)
 
