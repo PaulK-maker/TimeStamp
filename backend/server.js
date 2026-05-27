@@ -243,6 +243,7 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/tenant", tenantRoutes);
 app.use("/api/tenant/otp", tenantOtpRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/caregivers", staffRoutes); // backward-compat alias (old frontend builds)
 app.use("/api/jobs", jobRoutes);
 app.use("/api/timeclock", timeClockRoutes);
 app.use("/api/missed-punch", missedPunchRoutes);
