@@ -11,7 +11,7 @@ require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 const CLIENT_ID = process.argv[2] || process.env.GUSTO_CLIENT_ID || "";
 const CLIENT_SECRET = process.argv[3] || process.env.GUSTO_CLIENT_SECRET || "";
-const REDIRECT_URI = "http://localhost:5001/api/auth/gusto/callback";
+const REDIRECT_URI = "http://localhost:9876/callback";
 const AUTH_BASE = "https://api.gusto-demo.com";
 const TOKEN_URL = `${AUTH_BASE}/oauth/token`;
 
