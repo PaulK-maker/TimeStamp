@@ -2,6 +2,8 @@ import React from "react";
 import { SignUp } from "@clerk/clerk-react";
 
 export default function SignUpPage() {
+  const origin = window.location.origin;
+
   return (
     <div
       style={{
@@ -12,7 +14,17 @@ export default function SignUpPage() {
         padding: 24,
       }}
     >
-      <SignUp routing="path" path="/sign-up" forceRedirectUrl="/post-sign-in" />
+      <SignUp
+        routing="path"
+        path="/sign-up"
+        forceRedirectUrl="/post-sign-in"
+        appearance={{
+          layout: {
+            termsPageUrl: `${origin}/terms`,
+            privacyPageUrl: `${origin}/privacy`,
+          },
+        }}
+      />
     </div>
   );
 }

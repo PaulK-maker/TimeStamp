@@ -44,6 +44,7 @@ import SignOutPage from "./pages/SignOutPage";
 import AboutUs from "./pages/AboutUs";
 import ContactPage from "./pages/ContactPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import CalendarPage from "./pages/CalendarPage";
 import AdminPrintReportPage from "./pages/AdminPrintReportPage";
 import AdminBillingPage from "./pages/AdminBillingPage";
@@ -87,6 +88,7 @@ function App() {
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
 
           {/* Signed-in tools */}
           <Route path="/calendar" element={<CalendarPage />} />
