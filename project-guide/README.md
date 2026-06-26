@@ -6,7 +6,7 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 
 - [Setup Guide](setup.md): Instructions on how to get the project running locally.
 - [Tenant Setup (Create Facility + Assign Users)](tenantcreate.md): Step-by-step guide to create/choose a tenant, generate a facility code, assign users, and select a plan.
-- [Facility / Provider Setup Guide](facility-provider-setup.md): Step-by-step flow for adding a new facility, inviting a provider/staff user, and handling payroll-provider context.
+- [Facility / Provider Setup Guide](facility-provider-setup.md): Step-by-step flow for onboarding a new subscriber/facility, inviting staff or an additional admin, and handling payroll-provider context.
 - [Architecture Overview](architecture.md): A high-level look at how the frontend and backend interact.
 - [API Documentation](api-documentation.md): Details about the backend endpoints.
 - [Database Schema](database.md): Information about the MongoDB models.

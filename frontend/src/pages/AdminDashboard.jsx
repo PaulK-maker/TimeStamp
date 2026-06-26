@@ -265,6 +265,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState("");
 
   const [tenantCode, setTenantCode] = useState(null);
   const [tenantName, setTenantName] = useState(null);
@@ -455,10 +456,17 @@ const AdminDashboard = () => {
         if (cancelled) return;
         setTenantCode(me?.tenantCode || null);
         setTenantName(me?.tenantName || null);
+        setSignedInEmail(
+          me?.email ||
+            me?.emailAddress ||
+            me?.primaryEmailAddress?.emailAddress ||
+            ""
+        );
       } catch {
         if (cancelled) return;
         setTenantCode(null);
         setTenantName(null);
+        setSignedInEmail("");
       }
     })();
 
@@ -605,6 +613,11 @@ const AdminDashboard = () => {
         >
           <div>
             <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
+            {signedInEmail ? (
+              <div style={{ marginTop: 4, color: "#555" }}>
+                Signed in as: <strong>{signedInEmail}</strong>
+              </div>
+            ) : null}
             {tenantCode ? (
               <div style={{ marginTop: 6, color: "#555" }}>
                 Facility code (support/reference): {" "}

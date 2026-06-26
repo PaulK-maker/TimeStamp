@@ -289,7 +289,7 @@ const CaregiverDashboard = () => {
             <h1>Staff Dashboard</h1>
             {user?.primaryEmailAddress?.emailAddress && (
               <p>
-                Welcome, <strong>{user.primaryEmailAddress.emailAddress}</strong>
+                Signed in as: <strong>{user.primaryEmailAddress.emailAddress}</strong>
               </p>
             )}
           </div>

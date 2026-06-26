@@ -8,7 +8,34 @@ This guide gives a clear step-by-step flow for adding:
 
 Use this when admins ask: "How do I add a new facility/provider?"
 
+Use this when the facility does not already exist and you need to onboard a new subscriber from scratch.
+
 ---
+
+## New Subscriber Flow
+
+Use this flow when you are onboarding a brand-new customer or facility that does not yet exist in TimeStamp.
+
+1. Sign in as the admin who will own the new facility.
+2. Open `/admin/billing`.
+3. Under **Setup required**, click **Email me a one-time setup code**.
+4. Enter the 6-digit setup code that arrives in the admin email inbox.
+5. Click **Verify & create facility**.
+6. Confirm the facility is created and the facility name/code appear on the Billing page.
+7. Select the correct billing plan for the new subscriber.
+8. Open **Invite staff member by email (one-time code)** and send invite codes to the staff members who will work at that facility.
+9. Ask each staff member to:
+   - sign in with the same email address that received the invite code
+   - open `/tenant-setup`
+   - enter the 6-digit invite code
+   - click **Join with invite code**
+10. Confirm the staff member appears in the correct facility and reaches the expected dashboard.
+
+Important:
+- The setup code is for creating the first facility record.
+- The invite code is for adding staff or additional admins to that facility.
+- One facility equals one tenant.
+- Keep the facility code for support reference.
 
 ## Before you start
 
