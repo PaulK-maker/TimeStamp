@@ -48,12 +48,11 @@ const jobSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-jobSchema.pre("validate", function setNameKey(next) {
+jobSchema.pre("validate", function setNameKey() {
   this.name = normalizeOptionalString(this.name);
   this.description = normalizeOptionalString(this.description);
   this.gustoJobUuid = normalizeOptionalString(this.gustoJobUuid);
   this.nameKey = buildNameKey(this.name);
-  next();
 });
 
 jobSchema.index({ tenantId: 1, isActive: 1 });
