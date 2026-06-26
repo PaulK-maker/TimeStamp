@@ -251,7 +251,7 @@
 
 // export default AdminDashboard;
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import JobsManagementPanel from "../components/JobsManagementPanel";
@@ -278,6 +278,13 @@ const AdminDashboard = () => {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
   const [inviteCopyCode, setInviteCopyCode] = useState("");
+
+  const [logSearchText, setLogSearchText] = useState("");
+  const [logDateStart, setLogDateStart] = useState("");
+  const [logDateEnd, setLogDateEnd] = useState("");
+  const [logSort, setLogSort] = useState("punchIn_desc");
+  const [logPage, setLogPage] = useState(1);
+  const [totalsSort, setTotalsSort] = useState("hours_desc");
 
   const navigate = useNavigate();
 
@@ -498,6 +505,80 @@ const AdminDashboard = () => {
   const formatHours = (hours) =>
     typeof hours === "number" ? hours.toFixed(2) : "-";
 
+  const LOGS_PAGE_SIZE = 15;
+
+  const filteredLogs = useMemo(() => {
+    const search = logSearchText.trim().toLowerCase();
+
+    const next = logs
+      .filter((log) => {
+        if (logDateStart) {
+          const start = new Date(`${logDateStart}T00:00:00`);
+          if (new Date(log.punchIn) < start) return false;
+        }
+
+        if (logDateEnd) {
+          const end = new Date(`${logDateEnd}T23:59:59.999`);
+          if (new Date(log.punchIn) > end) return false;
+        }
+
+        if (!search) return true;
+
+        const staffName = `${log.staff?.firstName || ""} ${log.staff?.lastName || ""}`.trim().toLowerCase();
+        const email = String(log.staff?.email || "").toLowerCase();
+        const job = String(log.jobSnapshot?.name || log.job?.name || "").toLowerCase();
+        return staffName.includes(search) || email.includes(search) || job.includes(search);
+      })
+      .sort((a, b) => {
+        if (logSort === "hours_desc" || logSort === "hours_asc") {
+          const aHours = a.punchIn && a.punchOut ? (new Date(a.punchOut) - new Date(a.punchIn)) / (1000 * 60 * 60) : 0;
+          const bHours = b.punchIn && b.punchOut ? (new Date(b.punchOut) - new Date(b.punchIn)) / (1000 * 60 * 60) : 0;
+          return logSort === "hours_desc" ? bHours - aHours : aHours - bHours;
+        }
+
+        const aPunchIn = new Date(a.punchIn).getTime();
+        const bPunchIn = new Date(b.punchIn).getTime();
+        return logSort === "punchIn_asc" ? aPunchIn - bPunchIn : bPunchIn - aPunchIn;
+      });
+
+    return next;
+  }, [logs, logDateEnd, logDateStart, logSearchText, logSort]);
+
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PAGE_SIZE));
+
+  const pagedLogs = useMemo(() => {
+    const start = (logPage - 1) * LOGS_PAGE_SIZE;
+    return filteredLogs.slice(start, start + LOGS_PAGE_SIZE);
+  }, [filteredLogs, logPage]);
+
+  const sortedTotals = useMemo(() => {
+    const next = [...totals];
+    next.sort((a, b) => {
+      if (totalsSort === "name_asc" || totalsSort === "name_desc") {
+        const aName = `${a.staff?.firstName || ""} ${a.staff?.lastName || ""}`.trim().toLowerCase();
+        const bName = `${b.staff?.firstName || ""} ${b.staff?.lastName || ""}`.trim().toLowerCase();
+        const cmp = aName.localeCompare(bName);
+        return totalsSort === "name_asc" ? cmp : -cmp;
+      }
+
+      const aHours = Number(a.totalHours || 0);
+      const bHours = Number(b.totalHours || 0);
+      return totalsSort === "hours_asc" ? aHours - bHours : bHours - aHours;
+    });
+
+    return next;
+  }, [totals, totalsSort]);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [logSearchText, logDateStart, logDateEnd, logSort]);
+
+  useEffect(() => {
+    if (logPage > totalLogPages) {
+      setLogPage(totalLogPages);
+    }
+  }, [logPage, totalLogPages]);
+
   if (loading && !logs.length) {
     return (
       <div style={{ padding: "40px", textAlign: "center" }}>
@@ -535,13 +616,12 @@ const AdminDashboard = () => {
             ) : null}
           </div>
 
-          <div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button
               onClick={fetchTimeLogs}
               disabled={refreshing}
               style={{
                 padding: "8px 16px",
-                marginRight: "10px",
                 backgroundColor: "#007bff",
                 color: "#fff",
                 border: "none",
@@ -555,7 +635,6 @@ const AdminDashboard = () => {
               onClick={() => navigate("/admin/reports/print")}
               style={{
                 padding: "8px 16px",
-                marginRight: "10px",
                 backgroundColor: "#111827",
                 color: "#fff",
                 border: "none",
@@ -570,7 +649,6 @@ const AdminDashboard = () => {
               onClick={() => navigate("/admin/payroll")}
               style={{
                 padding: "8px 16px",
-                marginRight: "10px",
                 backgroundColor: "#111827",
                 color: "#fff",
                 border: "none",
@@ -583,7 +661,6 @@ const AdminDashboard = () => {
               onClick={() => navigate("/staff")}
               style={{
                 padding: "8px 16px",
-                marginRight: "10px",
                 backgroundColor: "#17a2b8",
                 color: "#fff",
                 border: "none",
@@ -597,7 +674,6 @@ const AdminDashboard = () => {
               onClick={() => setInviteOpen(true)}
               style={{
                 padding: "8px 16px",
-                marginRight: "10px",
                 backgroundColor: "#059669",
                 color: "#fff",
                 border: "none",
@@ -645,13 +721,59 @@ const AdminDashboard = () => {
             marginBottom: "20px",
           }}
         >
-          <h2>📋 All Time Logs ({logs.length})</h2>
+          <h2>📋 All Time Logs ({filteredLogs.length})</h2>
 
-          {logs.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <input
+              value={logSearchText}
+              onChange={(e) => setLogSearchText(e.target.value)}
+              placeholder="Search staff, email, or job..."
+              style={{
+                padding: "8px 10px",
+                borderRadius: 6,
+                border: "1px solid #ddd",
+                minWidth: 240,
+                flex: "1 1 260px",
+              }}
+            />
+            <input
+              type="date"
+              value={logDateStart}
+              onChange={(e) => setLogDateStart(e.target.value)}
+              style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd" }}
+            />
+            <input
+              type="date"
+              value={logDateEnd}
+              onChange={(e) => setLogDateEnd(e.target.value)}
+              style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd" }}
+            />
+            <select
+              value={logSort}
+              onChange={(e) => setLogSort(e.target.value)}
+              style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd" }}
+            >
+              <option value="punchIn_desc">Newest first</option>
+              <option value="punchIn_asc">Oldest first</option>
+              <option value="hours_desc">Longest shifts</option>
+              <option value="hours_asc">Shortest shifts</option>
+            </select>
+          </div>
+
+          {filteredLogs.length === 0 ? (
             <p>No time logs found.</p>
           ) : (
+            <>
             <table width="100%" cellPadding="8">
-              <thead>
+              <thead style={{ position: "sticky", top: 0, backgroundColor: "#fff", zIndex: 1 }}>
                 <tr>
                   <th align="left">Staff</th>
                   <th align="left">Email</th>
@@ -662,7 +784,7 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => {
+                {pagedLogs.map((log) => {
                   const hours =
                     log.punchIn && log.punchOut
                       ? (new Date(log.punchOut) -
@@ -688,6 +810,43 @@ const AdminDashboard = () => {
                 })}
               </tbody>
             </table>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 10, flexWrap: "wrap" }}>
+              <div style={{ color: "#555", fontSize: 13 }}>
+                Showing {pagedLogs.length} of {filteredLogs.length} entries
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setLogPage((prev) => Math.max(1, prev - 1))}
+                  disabled={logPage <= 1}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #ddd",
+                    background: "#fff",
+                    cursor: logPage <= 1 ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Prev
+                </button>
+                <span style={{ color: "#444", fontSize: 13 }}>
+                  Page {logPage} / {totalLogPages}
+                </span>
+                <button
+                  onClick={() => setLogPage((prev) => Math.min(totalLogPages, prev + 1))}
+                  disabled={logPage >= totalLogPages}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #ddd",
+                    background: "#fff",
+                    cursor: logPage >= totalLogPages ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+            </>
           )}
         </div>
 
@@ -818,20 +977,47 @@ const AdminDashboard = () => {
         >
           <h2>📊 Total Hours per Staff Member</h2>
 
-          {totals.length === 0 ? (
+          {sortedTotals.length === 0 ? (
             <p>No completed shifts.</p>
           ) : (
-            <ul>
-              {totals.map((item) => (
-                <li key={item.staff._id}>
-                  {item.staff.firstName}{" "}
-                  {item.staff.lastName}:{" "}
-                  <strong>
-                    {item.totalHours.toFixed(2)} hrs
-                  </strong>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
+                <div style={{ color: "#555", fontSize: 13 }}>
+                  Ranked by selected sort
+                </div>
+                <select
+                  value={totalsSort}
+                  onChange={(e) => setTotalsSort(e.target.value)}
+                  style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd" }}
+                >
+                  <option value="hours_desc">Most hours first</option>
+                  <option value="hours_asc">Least hours first</option>
+                  <option value="name_asc">Name A-Z</option>
+                  <option value="name_desc">Name Z-A</option>
+                </select>
+              </div>
+
+              <table width="100%" cellPadding="8" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th align="left">Rank</th>
+                    <th align="left">Staff</th>
+                    <th align="left">Email</th>
+                    <th align="right">Total Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTotals.map((item, idx) => (
+                    <tr key={item.staff._id} style={{ borderTop: "1px solid #eee" }}>
+                      <td>#{idx + 1}</td>
+                      <td>{item.staff.firstName} {item.staff.lastName}</td>
+                      <td>{item.staff.email || "-"}</td>
+                      <td align="right"><strong>{item.totalHours.toFixed(2)} hrs</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>

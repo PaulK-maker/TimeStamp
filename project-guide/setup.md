@@ -40,9 +40,9 @@ Follow these steps to get the TimeStamp project running on your local machine.
    APP_BASE_URL=http://localhost:3000
    STRIPE_SECRET_KEY=your_stripe_secret_key
    STRIPE_WEBHOOK_SECRET=whsec_replace_me
-   # Standard plan: $10/month recurring price ID from Stripe Dashboard
+   # Standard plan: $35/month recurring price ID from Stripe Dashboard
    STRIPE_PRICE_STANDARD_10=price_replace_standard
-   # Pro plan: $15/month recurring price ID from Stripe Dashboard
+   # Pro plan: $55/month recurring price ID from Stripe Dashboard
    STRIPE_PRICE_PRO_25=price_replace_pro
 
    # Optional explicit Stripe return URLs

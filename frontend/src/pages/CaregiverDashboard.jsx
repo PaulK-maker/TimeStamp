@@ -14,6 +14,8 @@ const CaregiverDashboard = () => {
   const [error, setError] = useState("");
   const [totalHours, setTotalHours] = useState(0);
   const [currentlyClockedIn, setCurrentlyClockedIn] = useState(false);
+  const [activeShiftStartMs, setActiveShiftStartMs] = useState(null);
+  const [liveShiftSeconds, setLiveShiftSeconds] = useState(0);
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -66,11 +68,35 @@ const CaregiverDashboard = () => {
     setTotalHours(total);
 
     const activeShift = logsData.find((log) => {
+      const inn = log.effectivePunchIn ?? log.punchIn;
       const out = log.effectivePunchOut ?? log.punchOut;
-      return Boolean(log.punchIn && !out);
+      return Boolean(inn && !out);
     });
     setCurrentlyClockedIn(!!activeShift);
+
+    if (activeShift) {
+      const activePunchIn = new Date(activeShift.effectivePunchIn ?? activeShift.punchIn).getTime();
+      setActiveShiftStartMs(Number.isNaN(activePunchIn) ? null : activePunchIn);
+      if (!Number.isNaN(activePunchIn)) {
+        setLiveShiftSeconds(Math.max(0, Math.floor((Date.now() - activePunchIn) / 1000)));
+      }
+    } else {
+      setActiveShiftStartMs(null);
+      setLiveShiftSeconds(0);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!currentlyClockedIn || !activeShiftStartMs) return undefined;
+
+    const tick = () => {
+      setLiveShiftSeconds(Math.max(0, Math.floor((Date.now() - activeShiftStartMs) / 1000)));
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [currentlyClockedIn, activeShiftStartMs]);
 
   const toLocalDateTimeValue = (d) => {
     const date = d instanceof Date ? d : new Date(d);
@@ -174,6 +200,14 @@ const CaregiverDashboard = () => {
   }, [fetchMyJobs, fetchMyLogs, isLoaded, isSignedIn]);
 
   const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : "-");
+
+  const formatDuration = (totalSeconds) => {
+    if (!totalSeconds || totalSeconds < 0) return "00:00:00";
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  };
 
   const latestRequestByEntryId = missedPunchRequests.reduce((acc, r) => {
     const entryId = r?.timeEntry?._id || r?.timeEntry;
@@ -328,6 +362,15 @@ const CaregiverDashboard = () => {
             }}
           >
             <h3>{currentlyClockedIn ? "🟢 CLOCKED IN" : "⏳ Clocked Out"}</h3>
+              {currentlyClockedIn ? (
+                <p style={{ margin: "8px 0 0", color: "#6b4f00", fontWeight: 700 }}>
+                  Current shift: {formatDuration(liveShiftSeconds)}
+                </p>
+              ) : (
+                <p style={{ margin: "8px 0 0", color: "#2f5d33", fontWeight: 600 }}>
+                  You are currently off shift
+                </p>
+              )}
           </div>
         </div>
 

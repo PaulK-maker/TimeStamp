@@ -4,7 +4,18 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 
 ---
 
-## Current Sprint Status (Updated: May 26, 2026)
+## Current Sprint Status (Updated: June 25, 2026)
+
+### UI — June 25, 2026
+- [x] **Admin Dashboard — log controls** — added search, date range filters, sort options (newest/oldest/longest/shortest), and pagination for admin time logs
+- [x] **Admin Dashboard — responsive actions row** — primary action buttons now wrap cleanly on smaller screens instead of overflowing
+- [x] **Staff Dashboard — live shift timer** — while clocked in, staff now see a real-time duration counter (`HH:MM:SS`) for the active shift
+- [x] **Admin Dashboard — totals ranking table** — replaced totals bullet list with a sortable rank table (hours/name sorting)
+
+### UI — Remaining Improvements (Undone)
+- [ ] Add consistent empty-state call-to-action blocks on payroll/admin sections
+- [ ] Replace browser `window.confirm` dialogs in user management with in-app confirmation modals
+- [ ] Add sticky headers to long data tables (admin logs, user management, payroll runs)
 
 ### UI — May 21, 2026
 - [x] **Admin Dashboard — Invite Staff button + modal** — green "✉️ Invite Staff" button added to all admin dashboards; modal collects email, calls `POST /tenant/otp/send-join`, shows OTP copy-code on success with onboarding instructions
@@ -31,7 +42,7 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - Jobs are **TimeStamp-managed**, not synced from Gusto/payroll
 - Admins create jobs through the Admin Dashboard → 🧩 Jobs panel
 - The `gustoJobUuid` field is an optional manual link to a Gusto job position (only needed for payroll submission)
-- Creating jobs via UI requires `dataManagement` feature — available on Standard ($10/mo) and Pro ($15/mo) plans only
+- Creating jobs via UI requires `dataManagement` feature — available on Standard ($35/mo) and Pro ($55/mo) plans only
 - For dev/testing: run `cd backend && node scripts/seedJobs.js`
 
 ### Stripe Billing — Nearly Done
@@ -344,8 +355,8 @@ Define plans centrally (backend config), with two key dimensions:
 Current plan rules:
 
 - Free: up to **2 caregivers**, no `dataManagement`, no `printing`
-- Standard: **$10/mo**, up to **10 caregivers**, `dataManagement` yes, `printing` no
-- Pro: **$15/mo**, up to **25 caregivers**, `dataManagement` yes, `printing` yes
+- Standard: **$35/mo**, up to **20 caregivers**, `dataManagement` yes, `printing` no, `payroll` no
+- Pro: **$55/mo**, up to **40 caregivers**, `dataManagement` yes, `printing` yes, `payroll` yes
 
 ### Tenant identity & binding
 Design choice: “easy, safe, secure” means **no tenant switching**.

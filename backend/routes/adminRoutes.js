@@ -105,7 +105,7 @@ router.get(
   "/payroll-runs",
   auth,
   authorizeRoles("admin"),
-  requireFeature("dataManagement"),
+  requireFeature("payroll"),
   listPayrollRuns
 );
 
@@ -113,7 +113,7 @@ router.post(
   "/payroll-runs",
   auth,
   authorizeRoles("admin"),
-  requireFeature("dataManagement"),
+  requireFeature("payroll"),
   createPayrollRun
 );
 
@@ -121,7 +121,7 @@ router.post(
   "/payroll-runs/:runId/submit",
   auth,
   authorizeRoles("admin"),
-  requireFeature("dataManagement"),
+  requireFeature("payroll"),
   submitPayrollRun
 );
 
@@ -129,7 +129,7 @@ router.get(
   "/payroll-webhook-events",
   auth,
   authorizeRoles("admin"),
-  requireFeature("dataManagement"),
+  requireFeature("payroll"),
   listPayrollWebhookEvents
 );
 
