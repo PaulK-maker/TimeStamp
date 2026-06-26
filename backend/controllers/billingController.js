@@ -252,6 +252,85 @@ async function createPortalSession(req, res) {
   return res.json({ url: session.url });
 }
 
+async function cancelSubscription(req, res) {
+  const tenant = await requireTenant(req, res);
+  if (!tenant) return undefined;
+
+  const confirmName = (req.body?.confirmName || "").toString().trim().toLowerCase();
+  const cancellationReason = (req.body?.cancellationReason || "").toString().trim();
+  const tenantName = (tenant.name || "").toString().trim().toLowerCase();
+
+  if (!tenant.stripeSubscriptionId) {
+    return res.status(400).json({
+      message: "This facility does not have an active Stripe subscription.",
+      code: "SUBSCRIPTION_NOT_FOUND",
+    });
+  }
+
+  if (!confirmName || confirmName !== tenantName) {
+    return res.status(400).json({
+      message: `Type the facility name exactly (${tenant.name}) to confirm cancellation.`,
+      code: "CANCEL_CONFIRMATION_REQUIRED",
+    });
+  }
+
+  if (!cancellationReason) {
+    return res.status(400).json({
+      message: "Please provide a cancellation reason before continuing.",
+      code: "CANCEL_REASON_REQUIRED",
+    });
+  }
+
+  const stripe = getStripeClient();
+  const subscription = await stripe.subscriptions.retrieve(tenant.stripeSubscriptionId);
+
+  if (!subscription || subscription.status === "canceled") {
+    tenant.stripeSubscriptionId = null;
+    tenant.stripePriceId = null;
+    tenant.subscriptionStatus = null;
+    tenant.currentPeriodEnd = null;
+    await tenant.save();
+
+    return res.json({
+      message: "The subscription was already canceled in Stripe.",
+      mode: "already_canceled",
+      ...serializeTenantBilling(tenant),
+    });
+  }
+
+  if (subscription.cancel_at_period_end) {
+    return res.json({
+      message: "Cancellation is already scheduled for the end of the billing period.",
+      mode: "already_scheduled",
+      ...serializeTenantBilling(tenant),
+    });
+  }
+
+  const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+    cancel_at_period_end: true,
+  });
+
+  console.log("Subscription cancellation scheduled", {
+    tenantId: tenant._id.toString(),
+    tenantName: tenant.name,
+    stripeSubscriptionId: subscription.id,
+    cancellationReason,
+    requestedBy: req.user?.email || req.user?.id || "unknown",
+  });
+
+  tenant.subscriptionStatus = updatedSubscription.status || tenant.subscriptionStatus;
+  tenant.currentPeriodEnd = updatedSubscription.current_period_end
+    ? new Date(updatedSubscription.current_period_end * 1000)
+    : tenant.currentPeriodEnd;
+  await tenant.save();
+
+  return res.json({
+    message: "Cancellation scheduled. The subscription will end at the close of the current billing period.",
+    mode: "scheduled",
+    ...serializeTenantBilling(tenant),
+  });
+}
+
 async function listInvoices(req, res) {
   const tenant = await requireTenant(req, res);
   if (!tenant) return undefined;
@@ -288,6 +367,7 @@ module.exports = {
   selectPlan,
   createCheckoutSession,
   createPortalSession,
+  cancelSubscription,
   listInvoices,
   serializeTenantBilling,
 };

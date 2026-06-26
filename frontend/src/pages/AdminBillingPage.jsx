@@ -52,6 +52,10 @@ export default function AdminBillingPage() {
   const [plans, setPlans] = useState([]);
   const [savingPlanId, setSavingPlanId] = useState(null);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelConfirmText, setCancelConfirmText] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
   const [invoices, setInvoices] = useState([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [tenantRequired, setTenantRequired] = useState(false);
@@ -371,6 +375,60 @@ export default function AdminBillingPage() {
     }
   }
 
+  function openCancelDialog() {
+    setError("");
+    setCancelConfirmText("");
+    setCancelReason("");
+    setCancelDialogOpen(true);
+  }
+
+  function closeCancelDialog() {
+    if (cancelBusy) return;
+    setCancelDialogOpen(false);
+    setCancelConfirmText("");
+    setCancelReason("");
+  }
+
+  async function handleCancelSubscription() {
+    setError("");
+
+    const expectedName = (tenant?.name || "").trim().toLowerCase();
+    const providedName = cancelConfirmText.trim().toLowerCase();
+
+    if (!expectedName || providedName !== expectedName) {
+      setError(`Type the facility name exactly (${tenant?.name || "the facility"}) to confirm cancellation.`);
+      return;
+    }
+
+    if (!cancelReason.trim()) {
+      setError("Please provide a cancellation reason before continuing.");
+      return;
+    }
+
+    setCancelBusy(true);
+    try {
+      const res = await api.post("/billing/cancel-subscription", {
+        confirmName: cancelConfirmText,
+        cancellationReason: cancelReason,
+      });
+
+      setCancelDialogOpen(false);
+      setCancelConfirmText("");
+      setCancelReason("");
+      await refreshBilling();
+      setStatusMessage(res.data?.message || "Cancellation scheduled.");
+    } catch (err) {
+      const tokenError = getLastAuthTokenError();
+      setError(
+        tokenError
+          ? getClerkTokenFailureMessage()
+          : err?.response?.data?.message || err?.message || "Failed to cancel subscription"
+      );
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
@@ -575,23 +633,41 @@ export default function AdminBillingPage() {
               Facility code (support/reference): <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{formatTenantCode(tenant.tenantCode)}</span>
             </div>
           ) : null}
-          {billingInfo?.canManagePortal ? (
-            <button
-              onClick={handleOpenPortal}
-              disabled={portalBusy}
-              style={{
-                marginTop: 12,
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: "1px solid #111",
-                background: "#fff",
-                color: "#111",
-                cursor: "pointer",
-              }}
-            >
-              {portalBusy ? "Opening billing portal…" : "Manage billing in Stripe"}
-            </button>
-          ) : null}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            {billingInfo?.canManagePortal ? (
+              <button
+                onClick={handleOpenPortal}
+                disabled={portalBusy}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #111",
+                  background: "#fff",
+                  color: "#111",
+                  cursor: "pointer",
+                }}
+              >
+                {portalBusy ? "Opening billing portal…" : "Manage billing in Stripe"}
+              </button>
+            ) : null}
+
+            {billingInfo?.subscriptionActive && tenant?.stripeSubscriptionId ? (
+              <button
+                onClick={openCancelDialog}
+                disabled={portalBusy || cancelBusy}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #b00020",
+                  background: "#fff3f3",
+                  color: "#b00020",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel subscription
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #e5e5e5", borderRadius: 8 }}>
@@ -611,6 +687,104 @@ export default function AdminBillingPage() {
           ) : null}
         </div>
       )}
+
+      {cancelDialogOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 1000,
+          }}
+          onClick={closeCancelDialog}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              background: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              border: "1px solid #f0c0c0",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ color: "#b00020", fontWeight: 800, fontSize: 18 }}>Cancel subscription</div>
+            <div style={{ marginTop: 8, color: "#555", lineHeight: 1.5 }}>
+              This will schedule the subscription to end at the close of the current billing period.
+              You can reopen the Stripe portal later if you need to change billing details.
+            </div>
+            <div style={{ marginTop: 14, padding: 12, borderRadius: 8, background: "#fff3f3", border: "1px solid #ffd7d7", color: "#7a1f2c" }}>
+              To confirm, type <strong>{tenant?.name || "the facility name"}</strong> exactly.
+            </div>
+            <input
+              value={cancelConfirmText}
+              onChange={(e) => setCancelConfirmText(e.target.value)}
+              placeholder={tenant?.name || "Facility name"}
+              style={{
+                width: "100%",
+                marginTop: 12,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ddd",
+              }}
+            />
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Why are you cancelling?"
+              rows={4}
+              style={{
+                width: "100%",
+                marginTop: 12,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ddd",
+                resize: "vertical",
+              }}
+            />
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={
+                  cancelBusy ||
+                  cancelConfirmText.trim().toLowerCase() !== (tenant?.name || "").trim().toLowerCase() ||
+                  !cancelReason.trim()
+                }
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #b00020",
+                  background: "#b00020",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {cancelBusy ? "Scheduling cancellation…" : "Confirm cancellation"}
+              </button>
+              <button
+                onClick={closeCancelDialog}
+                disabled={cancelBusy}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#111",
+                  cursor: "pointer",
+                }}
+              >
+                Keep subscription
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {tenant?.tenantCode ? (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #e5e5e5", borderRadius: 8 }}>

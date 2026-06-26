@@ -3,7 +3,11 @@ const mongoose = require("mongoose");
 const Tenant = require("../models/Tenant");
 const Staff = require("../models/staff");
 const TenantOtp = require("../models/TenantOtp");
-const { isMailerConfigured, sendMail } = require("../utils/mailer");
+const {
+  isMailerConfigured,
+  sendMail,
+  sendFacilitySignupNotification,
+} = require("../utils/mailer");
 
 function normalizeEmail(email) {
   return (email || "").toString().trim().toLowerCase();
@@ -482,6 +486,16 @@ exports.verifyBootstrapOtp = async (req, res) => {
     }
 
     await TenantOtp.updateOne({ _id: otp._id, consumedAt: null }, { $set: { consumedAt: now } });
+
+      try {
+        await sendFacilitySignupNotification({
+          tenant,
+          createdBy: staffMember,
+          source: "tenantOtpController.verifyBootstrapOtp",
+        });
+      } catch (notificationError) {
+        console.warn("Facility signup notification failed:", notificationError);
+      }
 
     return res.status(201).json({
       message: "Tenant created and assigned",

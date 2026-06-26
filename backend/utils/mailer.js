@@ -1,5 +1,13 @@
 const nodemailer = require("nodemailer");
 
+function normalizeEmailList(value) {
+  return (value || "")
+    .toString()
+    .split(/[,;\n]/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function getMailConfig() {
   const host = process.env.SMTP_HOST;
   const portRaw = process.env.SMTP_PORT;
@@ -66,8 +74,77 @@ async function sendMail({ to, subject, text, html }) {
   });
 }
 
+function getFacilitySignupNotificationRecipients() {
+  const explicitRecipients = normalizeEmailList(
+    process.env.FACILITY_SIGNUP_NOTIFICATION_EMAILS
+  );
+
+  if (explicitRecipients.length) {
+    return [...new Set(explicitRecipients)];
+  }
+
+  return [
+    ...new Set([
+      ...normalizeEmailList(process.env.SUPERADMIN_EMAIL),
+      ...normalizeEmailList(process.env.DEDICATED_NOTIFICATION_EMAIL),
+      "pkaranjaxn@gmail.com",
+      "hubtulivu@gmail.com",
+    ]),
+  ];
+}
+
+async function sendFacilitySignupNotification({ tenant, createdBy, source }) {
+  const recipients = getFacilitySignupNotificationRecipients();
+  if (!recipients.length) {
+    return { sent: false, reason: "no-recipients" };
+  }
+
+  const tenantName = tenant?.name || "Unnamed facility";
+  const tenantId = tenant?._id ? tenant._id.toString() : "unknown";
+  const tenantCode = tenant?.tenantCode || "n/a";
+  const createdByEmail = createdBy?.email || "unknown";
+  const createdByName = [createdBy?.firstName, createdBy?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const subject = `[TimeStamp] New facility signup: ${tenantName}`;
+  const text = [
+    "A new facility has signed up in TimeStamp.",
+    `Facility: ${tenantName}`,
+    `Tenant ID: ${tenantId}`,
+    `Tenant Code: ${tenantCode}`,
+    `Created by: ${createdByName || createdByEmail}`,
+    `Creator email: ${createdByEmail}`,
+    `Source: ${source || "unknown"}`,
+  ].join("\n");
+
+  const html = `
+    <p>A new facility has signed up in TimeStamp.</p>
+    <ul>
+      <li><strong>Facility:</strong> ${tenantName}</li>
+      <li><strong>Tenant ID:</strong> ${tenantId}</li>
+      <li><strong>Tenant Code:</strong> ${tenantCode}</li>
+      <li><strong>Created by:</strong> ${createdByName || createdByEmail}</li>
+      <li><strong>Creator email:</strong> ${createdByEmail}</li>
+      <li><strong>Source:</strong> ${source || "unknown"}</li>
+    </ul>
+  `;
+
+  await sendMail({
+    to: recipients.join(","),
+    subject,
+    text,
+    html,
+  });
+
+  return { sent: true, recipients };
+}
+
 module.exports = {
   getMailConfig,
   isMailerConfigured,
+  getFacilitySignupNotificationRecipients,
   sendMail,
+  sendFacilitySignupNotification,
 };

@@ -10,6 +10,7 @@ const {
   selectPlan,
   createCheckoutSession,
   createPortalSession,
+  cancelSubscription,
   listInvoices,
 } = require("../controllers/billingController");
 
@@ -21,6 +22,7 @@ router.get("/me", getMyBilling);
 router.post("/select-plan", selectPlan);
 router.post("/checkout-session", createCheckoutSession);
 router.post("/portal-session", createPortalSession);
+router.post("/cancel-subscription", cancelSubscription);
 router.get("/invoices", listInvoices);
 
 module.exports = router;

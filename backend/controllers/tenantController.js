@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const Tenant = require("../models/Tenant");
 const Staff = require("../models/staff");
+const {
+  sendFacilitySignupNotification,
+} = require("../utils/mailer");
 
 function normalizeTenantCode(value) {
   return (value || "")
@@ -78,6 +81,16 @@ exports.bootstrapTenant = async (req, res) => {
         tenant: serializeTenant(tenant),
       });
     }
+
+      try {
+        await sendFacilitySignupNotification({
+          tenant,
+          createdBy: staffMember,
+          source: "tenantController.bootstrapTenant",
+        });
+      } catch (notificationError) {
+        console.warn("Facility signup notification failed:", notificationError);
+      }
 
     return res.status(201).json({
       message: "Tenant created and assigned",
