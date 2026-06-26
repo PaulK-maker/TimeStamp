@@ -124,9 +124,9 @@ export default function RequireAdminPlanSelected({ children }) {
         <h2>Setup required</h2>
         <p style={{ color: "#b00020" }}>{tenantSetupMessage}</p>
         <div style={{ marginTop: 12, background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Fix (one-time): create or join your facility</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Fix (one-time): create your facility or join an existing one</div>
           <div style={{ marginTop: 6, color: "#555" }}>
-            Open the Billing page and click <strong>Create my facility</strong>.
+            If this is a brand-new facility, open Billing and click <strong>Create my facility</strong>. If you were invited to an existing facility, use your invite code on the setup page.
           </div>
           <div style={{ marginTop: 12 }}>
             <button

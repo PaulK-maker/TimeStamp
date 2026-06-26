@@ -73,9 +73,9 @@ export default function TenantSetupPage() {
 
       <SignedIn>
         <div style={{ padding: 24, maxWidth: 820, margin: "0 auto" }}>
-          <h2>Join your facility</h2>
+          <h2>Set up your facility</h2>
           <p style={{ marginTop: 4, color: "#555" }}>
-            Enter the 6-digit invite code your admin sent to your email.
+            If you are the new facility owner, create your facility first. If you were invited to an existing facility, enter the 6-digit invite code sent to your email.
           </p>
 
           {loading ? (
@@ -99,9 +99,9 @@ export default function TenantSetupPage() {
                 }}
               >
                 <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16, background: "white" }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Join with invite code (recommended)</div>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Join an existing facility with invite code</div>
                   <div style={{ color: "#555", marginBottom: 10 }}>
-                    Enter the 6-digit code your admin sent to your email. You must be signed in with that same email.
+                      Use this only if another admin already created the facility and sent you an invite code. You must be signed in with that same email.
                   </div>
 
                   <label style={{ display: "block", fontSize: 13, color: "#444" }}>Invite code</label>

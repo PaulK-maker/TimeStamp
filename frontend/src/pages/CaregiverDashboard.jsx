@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import Header from "../components/Header";
 import api from "../services/api";
@@ -8,6 +8,8 @@ import { getMe } from "../services/me";
 
 const CaregiverDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [tenantId, setTenantId] = useState(null);
+  const [tenantCheckLoading, setTenantCheckLoading] = useState(true);
 
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -31,19 +33,39 @@ const CaregiverDashboard = () => {
   const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!isLoaded) return;
     if (!isSignedIn) {
       setIsAdmin(false);
+      setTenantId(null);
+      setTenantCheckLoading(false);
       return;
     }
 
-    getMe({ forceRefresh: true })
-      .then((me) => setIsAdmin(me?.role === "admin"))
-      .catch(() => {
+    setTenantCheckLoading(true);
+
+    (async () => {
+      try {
+        const me = await getMe({ forceRefresh: true });
+        if (cancelled) return;
+        setIsAdmin(me?.role === "admin");
+        setTenantId(me?.tenantId || null);
+      } catch {
         // If /auth/me briefly fails during sign-in, we don't want to break the page.
         // Admin button will simply not render.
+        if (cancelled) return;
         setIsAdmin(false);
-      });
+        setTenantId(null);
+      } finally {
+        if (cancelled) return;
+        setTenantCheckLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isLoaded, isSignedIn]);
 
   const logout = useCallback(() => {
@@ -198,6 +220,18 @@ const CaregiverDashboard = () => {
     fetchMyLogs();
     fetchMyJobs();
   }, [fetchMyJobs, fetchMyLogs, isLoaded, isSignedIn]);
+
+  if (!isLoaded || tenantCheckLoading) {
+    return (
+      <div style={{ padding: 24 }}>
+        <p>Checking facility setup…</p>
+      </div>
+    );
+  }
+
+  if (isSignedIn && !tenantId) {
+    return <Navigate to="/tenant-setup" replace />;
+  }
 
   const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : "-");
 
