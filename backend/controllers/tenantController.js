@@ -63,13 +63,13 @@ exports.bootstrapTenant = async (req, res) => {
       planSelected: false,
     });
 
-    // Bind staff member to tenant, but only if still unassigned (prevents race/overwrites).
+    // Bind staff member to tenant and promote to admin (they are the facility owner).
     const bound = await Staff.findOneAndUpdate(
       {
         _id: staffMember._id,
         $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
       },
-      { $set: { tenantId: tenant._id } },
+      { $set: { tenantId: tenant._id, role: "admin" } },
       { new: true }
     );
 

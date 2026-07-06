@@ -14,6 +14,8 @@ export default function TenantSetupPage() {
 
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState(null);
+  const [facilityName, setFacilityName] = useState("");
+  const [createSaving, setCreateSaving] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [inviteSaving, setInviteSaving] = useState(false);
   const [error, setError] = useState("");
@@ -46,6 +48,21 @@ export default function TenantSetupPage() {
       cancelled = true;
     };
   }, [isLoaded, isSignedIn, userId]);
+
+  async function handleCreateFacility() {
+    setError("");
+    setCreateSaving(true);
+    try {
+      await api.post("/tenant/bootstrap", { name: facilityName.trim() || "My Facility" });
+      resetMeCache();
+      await getMe({ cacheKey: userId, forceRefresh: true });
+      navigate("/admin/billing", { replace: true });
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to create facility");
+    } finally {
+      setCreateSaving(false);
+    }
+  }
 
   async function handleRedeemInvite() {
     setError("");
@@ -98,6 +115,48 @@ export default function TenantSetupPage() {
                   gap: 12,
                 }}
               >
+                {/* ── Create new facility ── */}
+                <div style={{ border: "2px solid #111", borderRadius: 10, padding: 16, background: "white" }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Create a new facility</div>
+                  <div style={{ color: "#555", marginBottom: 10 }}>
+                    You are the facility owner. Enter your facility name and we will set up your account.
+                  </div>
+
+                  <label style={{ display: "block", fontSize: 13, color: "#444" }}>Facility name</label>
+                  <input
+                    value={facilityName}
+                    onChange={(e) => setFacilityName(e.target.value)}
+                    placeholder="e.g. Sunrise Home Care"
+                    style={{
+                      width: "100%",
+                      padding: 12,
+                      borderRadius: 8,
+                      border: "1px solid #ddd",
+                      marginTop: 6,
+                      boxSizing: "border-box",
+                    }}
+                  />
+
+                  <button
+                    onClick={handleCreateFacility}
+                    disabled={createSaving}
+                    style={{
+                      marginTop: 14,
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "#111",
+                      color: "#fff",
+                      cursor: createSaving ? "not-allowed" : "pointer",
+                      width: "100%",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {createSaving ? "Creating…" : "Create facility & continue"}
+                  </button>
+                </div>
+
+                {/* ── Join with invite code ── */}
                 <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16, background: "white" }}>
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>Join an existing facility with invite code</div>
                   <div style={{ color: "#555", marginBottom: 10 }}>
