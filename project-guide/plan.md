@@ -4,13 +4,17 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 
 ---
 
-## Current Sprint Status (Updated: June 25, 2026)
+## Current Sprint Status (Updated: July 6, 2026)
 
 ### UI — June 25, 2026
 - [x] **Admin Dashboard — log controls** — added search, date range filters, sort options (newest/oldest/longest/shortest), and pagination for admin time logs
 - [x] **Admin Dashboard — responsive actions row** — primary action buttons now wrap cleanly on smaller screens instead of overflowing
 - [x] **Staff Dashboard — live shift timer** — while clocked in, staff now see a real-time duration counter (`HH:MM:SS`) for the active shift
 - [x] **Admin Dashboard — totals ranking table** — replaced totals bullet list with a sortable rank table (hours/name sorting)
+
+### UI — July 6, 2026
+- [x] **New facility onboarding** — `TenantSetupPage.jsx` now shows two cards: "Create a new facility" (new) and "Join with invite code"; new subscribers no longer land on invite-only screen after Clerk sign-up
+- [x] **Bootstrap route fix** — `POST /api/tenant/bootstrap` opened to any authenticated user with no tenant; creator auto-promoted to admin role
 
 ### UI — Remaining Improvements (Undone)
 - [ ] Add consistent empty-state call-to-action blocks on payroll/admin sections
@@ -50,7 +54,7 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [x] Webhook reaches Render backend (`/api/stripe/webhook`)
 - [x] Plan activates correctly (`standard_10`, `pro_25`)
 - [x] Invalid `currentPeriodEnd` date bug fixed and deployed
-- [ ] Cancel remaining duplicate subscriptions (2 still active non-cancelling: `sub_1TFpzsGlYnDvUBQGCt6kS7Ie`, `sub_1TEjo6GlYnDvUBQGzi0Pepra`) — keep only `sub_1TPtGnGlYnDvUBQGZEBYCRGr`
+- [x] Duplicate subscription investigation complete — all three flagged IDs (`sub_1TFpzsGlYnDvUBQGCt6kS7Ie`, `sub_1TEjo6GlYnDvUBQGzi0Pepra`, `sub_1TPtGnGlYnDvUBQGZEBYCRGr`) confirmed test-mode only; no live subscriptions exist, no customers charged
 - [ ] Do one clean end-to-end checkout test on deployed app to confirm webhook auto-activates plan without manual script
 
 ### Gusto Payroll — Phase B COMPLETE ✅ (Sandbox)
@@ -73,11 +77,12 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [ ] Admin UI for payroll review and submission (currently automation script only)
 
 ### Before Going Live — Required
-- [ ] Set `ENABLE_DEV_BOOTSTRAP=false` in Render (currently `true` — security risk in production)
-- [ ] Replace `JWT_SECRET=supersecretkey123` with a strong random secret in Render
-- [ ] Strengthen `SUPERADMIN_ACCESS_KEY` to a long random string in Render
-- [ ] Confirm all duplicate Stripe subscriptions are cancelled so real customers are not double-billed
-- [ ] Test the full flow on deployed app as a brand new user: sign up → assign tenant → select plan → confirm admin features unlock
+- [x] Set `ENABLE_DEV_BOOTSTRAP=false` in Render — confirmed `NODE_ENV=production` disables dev bootstrap
+- [x] Replace `JWT_SECRET=supersecretkey123` with a strong random secret in Render
+- [x] Strengthen `SUPERADMIN_ACCESS_KEY` to a long random string in Render
+- [x] Stripe duplicate subscriptions — all flagged IDs were test-mode only; no live duplicates exist, no customers double-billed
+- [x] New facility onboarding fixed — new user can now sign up, create facility, and reach plan selection without being stuck on invite-only screen
+- [ ] Test the full flow on deployed app as a brand new user: sign up → create facility → select plan → confirm admin features unlock
 - [ ] Gusto payroll must remain sandbox/pilot only until Phase 4 of the payroll production roadmap is complete (monitoring, runbooks, staged rollout)
 
 ---

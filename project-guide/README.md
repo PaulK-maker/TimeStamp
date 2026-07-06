@@ -19,7 +19,7 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 
 TimeStamp is a web application designed for staff to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.
 
-## Go-Live Status (June 14, 2026)
+## Go-Live Status (Updated: July 6, 2026)
 
 ### ✅ Completed — Security & Legal
 - `NODE_ENV=production` set on Render — dev bootstrap disabled in production
@@ -29,13 +29,20 @@ TimeStamp is a web application designed for staff to log their time and for admi
 - **Privacy Policy** — replaced placeholder with real 11-section policy (data collection, usage, sharing, retention, security, user rights)
 - Clerk sign-up UI now shows Terms and Privacy links (passive consent, industry standard)
 
-### ❌ Remaining Before Go-Live
+### ✅ Completed — Stripe Duplicate Subscriptions
+- Confirmed all three subscription IDs (`sub_1TFpzsGlYnDvUBQGCt6kS7Ie`, `sub_1TEjo6GlYnDvUBQGzi0Pepra`, `sub_1TPtGnGlYnDvUBQGZEBYCRGr`) return "No such subscription" in live mode — all were test-mode only, no real customers were ever charged, billing is clean
+
+### ✅ Completed — New Facility Onboarding Fix (July 6, 2026)
+- New subscribers signing up via Clerk now see a **"Create a new facility"** card on `/tenant-setup` — previously only the invite-code card existed, blocking new facility owners
+- `POST /api/tenant/bootstrap` no longer requires admin role — any authenticated user with no tenant can create one
+- Facility creator is automatically promoted to `admin` role on creation
+
+### ❌ Remaining Before Full Go-Live
 
 | # | Task | Risk if skipped |
 |---|------|----------------|
-| 1 | Cancel duplicate Stripe subscriptions `sub_1TFpzsGlYnDvUBQGCt6kS7Ie` and `sub_1TEjo6GlYnDvUBQGzi0Pepra` in Stripe Dashboard | Real customers double-billed |
-| 2 | End-to-end checkout test on deployed app — new user → checkout → confirm plan activates via webhook automatically | Billing flow untested on production |
-| 3 | Full new-user smoke test on deployed app — sign up → assign tenant → select plan → confirm admin features unlock | Core user journey untested on production |
+| 1 | End-to-end checkout test on deployed app — new user → sign up → create facility → checkout → confirm plan activates via webhook automatically | Billing flow untested on production |
+| 2 | Full new-user smoke test on deployed app — sign up → create facility → select plan → confirm admin features unlock | Core user journey untested on production |
 
 ### Not Required for Initial Go-Live (Post-Launch / Payroll Phase)
 - Update MongoDB `PayrollRun` with submitted `providerPayrollId`
@@ -46,6 +53,12 @@ TimeStamp is a web application designed for staff to log their time and for admi
 ---
 
 ## Recent Changes
+
+### July 6, 2026
+- **New facility onboarding fixed** — `TenantSetupPage.jsx` now shows a "Create a new facility" card alongside the invite code card; new subscribers no longer get stuck on invite-only screen after Clerk sign-up
+- **Bootstrap route opened** — `POST /api/tenant/bootstrap` no longer gated behind admin role; any authenticated user with no tenant can create one and is automatically promoted to admin
+- **Stripe duplicate subscriptions resolved** — confirmed all three flagged subscription IDs existed in test mode only; no live subscriptions were created, no customers were ever charged
+- **Invite flow verified** — full staff invite flow reviewed: Admin Dashboard → Invite Staff modal → 6-digit OTP email → worker signs up with same email → enters code on `/tenant-setup` → joins facility → redirected to `/staff`
 
 ### June 25, 2026
 - **Admin Dashboard** — time logs now support search, date filtering, sorting, and pagination for easier high-volume review
