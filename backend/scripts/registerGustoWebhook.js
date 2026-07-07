@@ -29,25 +29,11 @@
 
 require("dotenv").config();
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 
 const CLIENT_ID = "j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I";
 const CLIENT_SECRET = "i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U";
-const COMPANY_UUID = process.env.GUSTO_PARTNER_COMPANY_UUID;
-const REFRESH_TOKEN = process.env.GUSTO_PARTNER_COMPANY_REFRESH;
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const API_BASE = "https://api.gusto-demo.com";
-
-if (!COMPANY_UUID) {
-  console.error("❌  GUSTO_PARTNER_COMPANY_UUID is not set in .env");
-  process.exit(1);
-}
-
-if (!REFRESH_TOKEN) {
-  console.error("❌  GUSTO_PARTNER_COMPANY_REFRESH is not set in .env");
-  process.exit(1);
-}
 
 if (!WEBHOOK_URL) {
   console.error(
@@ -70,37 +56,24 @@ function headers(extra = {}) {
   };
 }
 
-async function refreshToken() {
-  console.log("🔄  Refreshing company access token…");
+/**
+ * Webhook subscription endpoints require a system-level token obtained via
+ * client_credentials grant — NOT the company-scoped refresh token.
+ */
+async function getSystemToken() {
+  console.log("🔄  Obtaining system access token (client_credentials)…");
   const params = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: REFRESH_TOKEN,
+    grant_type: "client_credentials",
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
-    redirect_uri: "http://localhost:5001/api/auth/gusto/callback",
   });
 
-  const res = await axios.post("https://api.gusto-demo.com/oauth/token", params.toString(), {
+  const res = await axios.post(`${API_BASE}/oauth/token`, params.toString(), {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 
   TOKEN = res.data.access_token;
-  const newRefresh = res.data.refresh_token;
-
-  if (newRefresh && newRefresh !== REFRESH_TOKEN) {
-    const envPath = path.join(__dirname, "../.env");
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, "utf8");
-      const updated = envContent.replace(
-        /^GUSTO_PARTNER_COMPANY_REFRESH=.*/m,
-        `GUSTO_PARTNER_COMPANY_REFRESH=${newRefresh}`
-      );
-      fs.writeFileSync(envPath, updated);
-      console.log("   ↳ Refresh token rotated and saved to .env");
-    }
-  }
-
-  console.log("   ✅ Token refreshed");
+  console.log("   ✅ System token obtained");
 }
 
 async function listExistingSubscriptions() {
@@ -161,7 +134,7 @@ async function createSubscription() {
 }
 
 async function main() {
-  await refreshToken();
+  await getSystemToken();
 
   const existing = await listExistingSubscriptions();
 
