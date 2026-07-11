@@ -82,7 +82,7 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [x] 39 unit tests covering webhook signature verification, status mapping, and payroll profile validation — all passing
 - [x] Failed payroll alert emails — `sendPayrollFailureAlert` fires on `payroll.processing_failed` and `payroll.partially_reversed` webhook events, sends to facility admins and platform owners
 - [x] Runbook — retry, rollback, and incident handling documentation (`project-guide/payroll-runbook.md`)
-- [ ] Staged rollout — sandbox pilot before general release
+- [x] Staged rollout — sandbox → pilot → general release plan (`project-guide/payroll-staged-rollout.md`)
 
 ### Phase 2 Webhooks — COMPLETE ✅ (July 11, 2026)
 - [x] Webhook endpoint `POST /api/payroll/webhook` live on Render
