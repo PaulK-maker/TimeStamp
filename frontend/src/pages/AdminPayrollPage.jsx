@@ -8,6 +8,11 @@ import {
   submitPayrollRun,
 } from "../services/payroll";
 
+function formatDateOnly(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString();
+}
+
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString();
@@ -37,7 +42,9 @@ export default function AdminPayrollPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [blockingItems, setBlockingItems] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const [confirmRun, setConfirmRun] = useState(null);
 
   async function loadData() {
     setLoading(true);
@@ -90,15 +97,23 @@ export default function AdminPayrollPage() {
     if (!runId) return;
     setSaving(true);
     setError("");
+    setBlockingItems([]);
     setStatusMessage("");
     try {
       const result = await submitPayrollRun(runId);
       setStatusMessage(result?.message || "Payroll run submitted");
       await loadData();
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Failed to submit payroll run");
+      const response = err?.response?.data;
+      if (Array.isArray(response?.blockingItems) && response.blockingItems.length) {
+        setBlockingItems(response.blockingItems);
+        setError(response.message || "Resolve payroll item issues before submission");
+      } else {
+        setError(response?.message || err?.message || "Failed to submit payroll run");
+      }
     } finally {
       setSaving(false);
+      setConfirmRun(null);
     }
   }
 
@@ -189,11 +204,15 @@ export default function AdminPayrollPage() {
                     {runs.map((run) => (
                       <tr key={run._id}>
                         <td style={{ padding: "10px 8px", borderBottom: "1px solid #eee" }}>
-                          {formatDate(run.payPeriodStart)}<br />
-                          <span style={{ color: "#666" }}>to {formatDate(run.payPeriodEnd)}</span>
+                          {formatDateOnly(run.payPeriodStart)} — {formatDateOnly(run.payPeriodEnd)}
                         </td>
-                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #eee", color: statusColor(run.status), fontWeight: 700 }}>
-                          {(run.status || "draft").toUpperCase()}
+                        <td style={{ padding: "10px 8px", borderBottom: "1px solid #eee" }}>
+                          <span style={{ color: statusColor(run.status), fontWeight: 700 }}>
+                            {(run.status || "draft").toUpperCase()}
+                          </span>
+                          {run.lastError ? (
+                            <div style={{ color: "#b71c1c", fontSize: 12, marginTop: 4 }}>{run.lastError}</div>
+                          ) : null}
                         </td>
                         <td style={{ padding: "10px 8px", borderBottom: "1px solid #eee" }}>
                           {run.totalsSummary?.workerCount ?? 0}
@@ -208,14 +227,14 @@ export default function AdminPayrollPage() {
                           {run.status === "draft" ? (
                             <button
                               type="button"
-                              onClick={() => handleSubmitRun(run._id)}
+                              onClick={() => setConfirmRun(run)}
                               disabled={saving}
                               style={{ padding: "8px 12px", borderRadius: 6, border: "none", background: "#007bff", color: "#fff", cursor: "pointer" }}
                             >
-                              Submit
+                              Review & Submit
                             </button>
                           ) : (
-                            <span style={{ color: "#666" }}>{run.providerPayrollId || "Provider-linked"}</span>
+                            <span style={{ color: "#666", fontSize: 12, fontFamily: "monospace" }}>{run.providerPayrollId || "—"}</span>
                           )}
                         </td>
                       </tr>
@@ -228,6 +247,76 @@ export default function AdminPayrollPage() {
         </div>
 
         <StaffPayrollProfilePanel />
+
+        {/* Blocking items — shown when submit is blocked by missing providerEmployeeId */}
+        {blockingItems.length > 0 ? (
+          <section style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 8, padding: 16, marginTop: 20 }}>
+            <h3 style={{ marginTop: 0, color: "#f57f17" }}>Submission blocked — resolve these staff issues first</h3>
+            <p style={{ color: "#555", marginTop: 0 }}>
+              Each staff member below is missing a <strong>Gusto Employee ID</strong> (payrollProviderEmployeeId). Set it in the Staff Payroll Profiles section below.
+            </p>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #ffe082" }}>Name</th>
+                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #ffe082" }}>Email</th>
+                  <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #ffe082" }}>Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blockingItems.map((item) => (
+                  <tr key={item.staffId || item.payrollRunItemId}>
+                    <td style={{ padding: "8px", borderBottom: "1px solid #fff3cd" }}>{item.firstName} {item.lastName}</td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid #fff3cd" }}>{item.email}</td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid #fff3cd", color: "#b71c1c" }}>{item.issue}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        ) : null}
+
+        {/* Submit confirmation modal */}
+        {confirmRun ? (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setConfirmRun(null); }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 1000,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: 16,
+            }}
+          >
+            <div style={{ background: "#fff", borderRadius: 12, padding: 28, maxWidth: 480, width: "100%", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>
+              <h3 style={{ marginTop: 0 }}>Submit payroll to Gusto?</h3>
+              <p style={{ color: "#555" }}>
+                <strong>Pay period:</strong> {formatDateOnly(confirmRun.payPeriodStart)} — {formatDateOnly(confirmRun.payPeriodEnd)}<br />
+                <strong>Workers:</strong> {confirmRun.totalsSummary?.workerCount ?? 0}<br />
+                <strong>Gross preview:</strong> {formatCurrency(confirmRun.totalsSummary?.grossPayPreview ?? null)}
+              </p>
+              <p style={{ color: "#b71c1c", fontWeight: 600 }}>
+                This action is irreversible. Once submitted to Gusto, payroll processing begins and cannot be undone from this app.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRun(null)}
+                  style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmitRun(confirmRun._id)}
+                  disabled={saving}
+                  style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "#b71c1c", color: "#fff", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
+                >
+                  {saving ? "Submitting…" : "Yes, submit to Gusto"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <section style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8, padding: 16, marginTop: 20 }}>
           <h2 style={{ marginTop: 0 }}>Recent Payroll Webhook Events</h2>
