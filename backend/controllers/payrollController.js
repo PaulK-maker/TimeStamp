@@ -836,6 +836,11 @@ async function handlePayrollWebhook(req, res) {
     const parsedPayload = parseWebhookPayload(rawBody);
 
     if (isVerificationWebhook(parsedPayload)) {
+      const token = parsedPayload.verification_token || "";
+      console.log("=== GUSTO WEBHOOK VERIFICATION TOKEN ===");
+      console.log(token);
+      console.log("========================================");
+      console.log("Copy the token above and set it as GUSTO_WEBHOOK_VERIFICATION_TOKEN in Render environment variables.");
       return res.status(200).json({
         message: "Gusto webhook verification token received",
       });
