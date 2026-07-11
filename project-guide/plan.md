@@ -76,6 +76,15 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [ ] Gusto webhook fires back and updates `PayrollRun.status` in MongoDB
 - [ ] Admin UI for payroll review and submission (currently automation script only)
 
+### Phase 2 Webhooks — COMPLETE ✅ (July 11, 2026)
+- [x] Webhook endpoint `POST /api/payroll/webhook` live on Render
+- [x] Gusto webhook subscription registered — UUID `b1d27760-b7be-4bb4-9c0c-a16f76c824d5`, subscription type: Payroll
+- [x] Subscription state: **Active** (verified July 11, 2026)
+- [x] `GUSTO_WEBHOOK_VERIFICATION_TOKEN` set in Render environment variables
+- [x] HMAC SHA-256 signature verification, deduplication, and audit log all live
+- [x] PayrollRun and PayrollRunItem status reconciliation wired to all Gusto event types
+- [x] CORS fix deployed — `https://api.timecapcha.app` added to allowed origins
+
 ### Before Going Live — Required
 - [x] Set `ENABLE_DEV_BOOTSTRAP=false` in Render — confirmed `NODE_ENV=production` disables dev bootstrap
 - [x] Replace `JWT_SECRET=supersecretkey123` with a strong random secret in Render

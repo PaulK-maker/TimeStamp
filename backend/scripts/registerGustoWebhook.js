@@ -57,15 +57,25 @@ function headers(extra = {}) {
 }
 
 /**
- * Webhook subscription endpoints require a system-level token obtained via
- * client_credentials grant — NOT the company-scoped refresh token.
+ * Webhook subscription endpoints — try the existing company access token first.
+ * Gusto sandbox does not support client_credentials grant.
  */
 async function getSystemToken() {
-  console.log("🔄  Obtaining system access token (client_credentials)…");
+  const existing = (process.env.GUSTO_COMPANY_ACCESS_TOKEN || "").trim();
+  if (existing) {
+    TOKEN = existing;
+    console.log("🔑  Using GUSTO_COMPANY_ACCESS_TOKEN from .env");
+    return;
+  }
+
+  // Fallback: refresh from partner company refresh token
+  console.log("🔄  Refreshing company access token…");
   const params = new URLSearchParams({
-    grant_type: "client_credentials",
+    grant_type: "refresh_token",
+    refresh_token: process.env.GUSTO_PARTNER_COMPANY_REFRESH || "",
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
+    redirect_uri: "http://localhost:5001/api/auth/gusto/callback",
   });
 
   const res = await axios.post(`${API_BASE}/oauth/token`, params.toString(), {
@@ -73,7 +83,7 @@ async function getSystemToken() {
   });
 
   TOKEN = res.data.access_token;
-  console.log("   ✅ System token obtained");
+  console.log("   ✅ Token refreshed");
 }
 
 async function listExistingSubscriptions() {
