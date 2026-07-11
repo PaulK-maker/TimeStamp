@@ -837,10 +837,16 @@ async function handlePayrollWebhook(req, res) {
 
     if (isVerificationWebhook(parsedPayload)) {
       const token = parsedPayload.verification_token || "";
-      console.log("=== GUSTO WEBHOOK VERIFICATION TOKEN ===");
-      console.log(token);
-      console.log("========================================");
-      console.log("Copy the token above and set it as GUSTO_WEBHOOK_VERIFICATION_TOKEN in Render environment variables.");
+      // Only log the token if GUSTO_WEBHOOK_VERIFICATION_TOKEN is not yet configured —
+      // once it is set, logging it would expose the HMAC secret to anyone with log access.
+      if (!process.env.GUSTO_WEBHOOK_VERIFICATION_TOKEN) {
+        console.log("=== GUSTO WEBHOOK VERIFICATION TOKEN ===");
+        console.log(token);
+        console.log("========================================");
+        console.log("Copy the token above and set it as GUSTO_WEBHOOK_VERIFICATION_TOKEN in Render environment variables.");
+      } else {
+        console.log("Gusto webhook verification ping received — token already configured, not logging.");
+      }
       return res.status(200).json({
         message: "Gusto webhook verification token received",
       });
