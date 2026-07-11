@@ -12,6 +12,7 @@ const {
   submitPayrollRun: submitPayrollRunToProvider,
   verifyPayrollWebhookSignature,
 } = require("../config/gustoProvider");
+const { sendPayrollFailureAlert } = require("../utils/mailer");
 
 function mapRunStatus(eventType) {
   const normalized = (eventType || "").toString().trim().toLowerCase();
@@ -900,6 +901,19 @@ async function handlePayrollWebhook(req, res) {
     if (payrollRun) {
       await reconcilePayrollRunFromWebhook(payrollRun, parsedPayload);
       await reconcilePayrollItemsFromWebhook(payrollRun, parsedPayload);
+
+      // Send alert email on failure events — non-fatal if mail is not configured.
+      const failureEvents = ["payroll.processing_failed", "payroll.partially_reversed"];
+      if (failureEvents.includes(parsedPayload.event_type)) {
+        const tenant = payrollRun.tenantId
+          ? await require("../models/Tenant").findById(payrollRun.tenantId).select("name").lean()
+          : null;
+        sendPayrollFailureAlert({
+          payrollRun,
+          eventType: parsedPayload.event_type,
+          tenantName: tenant?.name || null,
+        }).catch((err) => console.warn("sendPayrollFailureAlert error:", err.message));
+      }
     }
 
     webhookEvent.status = payrollRun ? "processed" : "ignored";

@@ -141,10 +141,65 @@ async function sendFacilitySignupNotification({ tenant, createdBy, source }) {
   return { sent: true, recipients };
 }
 
+async function sendPayrollFailureAlert({ payrollRun, eventType, tenantName }) {
+  if (!isMailerConfigured()) return { sent: false, reason: "mail-not-configured" };
+
+  const recipients = getFacilitySignupNotificationRecipients();
+  if (!recipients.length) return { sent: false, reason: "no-recipients" };
+
+  const runId = payrollRun?._id ? payrollRun._id.toString() : "unknown";
+  const providerPayrollId = payrollRun?.providerPayrollId || "n/a";
+  const periodStart = payrollRun?.payPeriodStart
+    ? new Date(payrollRun.payPeriodStart).toLocaleDateString()
+    : "unknown";
+  const periodEnd = payrollRun?.payPeriodEnd
+    ? new Date(payrollRun.payPeriodEnd).toLocaleDateString()
+    : "unknown";
+  const errorDetail = payrollRun?.lastError || "No error detail available";
+  const facility = tenantName || "Unknown facility";
+
+  const subject = `[TimeStamp] ⚠️ Payroll failure — ${facility} (${periodStart} – ${periodEnd})`;
+
+  const text = [
+    `A payroll run has failed for ${facility}.`,
+    ``,
+    `Event:           ${eventType}`,
+    `Pay period:      ${periodStart} – ${periodEnd}`,
+    `PayrollRun ID:   ${runId}`,
+    `Provider ID:     ${providerPayrollId}`,
+    `Error:           ${errorDetail}`,
+    ``,
+    `Log into the TimeStamp admin panel and review the payroll run.`,
+    `If a resubmission is needed, cancel the run in Gusto first.`,
+  ].join("\n");
+
+  const html = `
+    <p>A payroll run has failed for <strong>${facility}</strong>.</p>
+    <table style="border-collapse:collapse;font-family:monospace;font-size:13px">
+      <tr><td style="padding:4px 12px 4px 0"><strong>Event</strong></td><td>${eventType}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Pay period</strong></td><td>${periodStart} – ${periodEnd}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>PayrollRun ID</strong></td><td>${runId}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Provider ID</strong></td><td>${providerPayrollId}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0"><strong>Error</strong></td><td style="color:#b71c1c">${errorDetail}</td></tr>
+    </table>
+    <p style="margin-top:16px">Log into the TimeStamp admin panel and review the payroll run.<br>
+    If a resubmission is needed, cancel the run in Gusto first.</p>
+  `;
+
+  try {
+    await sendMail({ to: recipients.join(","), subject, text, html });
+    return { sent: true, recipients };
+  } catch (err) {
+    console.warn("Payroll failure alert email failed to send:", err.message);
+    return { sent: false, reason: err.message };
+  }
+}
+
 module.exports = {
   getMailConfig,
   isMailerConfigured,
   getFacilitySignupNotificationRecipients,
   sendMail,
   sendFacilitySignupNotification,
+  sendPayrollFailureAlert,
 };

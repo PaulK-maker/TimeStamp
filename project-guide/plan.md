@@ -76,6 +76,14 @@ This document outlines the roadmap for transitioning to Clerk authentication, im
 - [ ] Gusto webhook fires back and updates `PayrollRun.status` in MongoDB
 - [ ] Admin UI for payroll review and submission (currently automation script only)
 
+### Phase 4 Security, Testing & Monitoring — COMPLETE ✅ (July 11, 2026)
+- [x] Verification token logging secured — only logs when `GUSTO_WEBHOOK_VERIFICATION_TOKEN` is not yet set
+- [x] Jest installed, `npm test` script added
+- [x] 39 unit tests covering webhook signature verification, status mapping, and payroll profile validation — all passing
+- [x] Failed payroll alert emails — `sendPayrollFailureAlert` fires on `payroll.processing_failed` and `payroll.partially_reversed` webhook events, sends to facility admins and platform owners
+- [ ] Runbook — retry, rollback, and incident handling documentation (next step)
+- [ ] Staged rollout — sandbox pilot before general release
+
 ### Phase 2 Webhooks — COMPLETE ✅ (July 11, 2026)
 - [x] Webhook endpoint `POST /api/payroll/webhook` live on Render
 - [x] Gusto webhook subscription registered — UUID `b1d27760-b7be-4bb4-9c0c-a16f76c824d5`, subscription type: Payroll
