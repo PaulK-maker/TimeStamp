@@ -14,12 +14,14 @@ Welcome to the TimeStamp Project Guide. This directory contains documentation to
 - [Implementation Plan](plan.md): Roadmap for Clerk integration, tenant billing, future payroll integration through a provider such as Gusto, and geofencing features.
 - [Payroll Production Roadmap](payroll-production-roadmap.md): Clear path from the current payroll foundation to a production-ready provider-backed payroll integration.
 - [Payroll Postman Test Guide](payroll-postman-test-guide.md): Manual verification steps for payroll profile validation and draft payroll run creation.
+- [Payroll Runbook](payroll-runbook.md): Incident response guide covering failed runs, stuck statuses, webhook issues, and rollback steps.
+- [Payroll Staged Rollout Plan](payroll-staged-rollout.md): Three-stage rollout plan (sandbox → pilot → general release) with exit criteria and rollback procedures.
 
 ## Project Overview
 
 TimeStamp is a web application designed for staff to log their time and for admins to manage those logs. It uses a modern tech stack with React on the frontend and Node.js/Express on the backend, with MongoDB as the database.
 
-## Go-Live Status (Updated: July 6, 2026)
+## Go-Live Status (Updated: July 11, 2026)
 
 ### ✅ Completed — Security & Legal
 - `NODE_ENV=production` set on Render — dev bootstrap disabled in production
@@ -37,22 +39,35 @@ TimeStamp is a web application designed for staff to log their time and for admi
 - `POST /api/tenant/bootstrap` no longer requires admin role — any authenticated user with no tenant can create one
 - Facility creator is automatically promoted to `admin` role on creation
 
-### ❌ Remaining Before Full Go-Live
+### ✅ Completed — Gusto Payroll Integration Phases 2–4 (July 11, 2026)
+- **Phase 2 — Webhooks**: Gusto webhook subscription registered and Active (UUID `b1d27760-b7be-4bb4-9c0c-a16f76c824d5`); HMAC SHA-256 signature verification live; `GUSTO_WEBHOOK_VERIFICATION_TOKEN` set on Render; status updates flow automatically from Gusto → MongoDB
+- **Phase 3 — Admin Payroll UI**: Confirmation modal with irreversible warning before submit; blocking items table for staff missing `providerEmployeeId`; inline `lastError` display for failed runs; formatted pay period dates
+- **Phase 4 — Security, Testing & Monitoring**: 39 Jest unit tests passing (webhook sig, status mapping, payroll profile validation); failed payroll alert emails via `sendPayrollFailureAlert`; payroll incident runbook at `project-guide/payroll-runbook.md`; staged rollout plan at `project-guide/payroll-staged-rollout.md`
 
-| # | Task | Risk if skipped |
-|---|------|----------------|
-| 1 | End-to-end checkout test on deployed app — new user → sign up → create facility → checkout → confirm plan activates via webhook automatically | Billing flow untested on production |
-| 2 | Full new-user smoke test on deployed app — sign up → create facility → select plan → confirm admin features unlock | Core user journey untested on production |
+### ❌ Remaining Before Full Go-Live (2 Smoke Tests)
+
+| # | Task | What you need |
+|---|------|---------------|
+| 1 | End-to-end checkout smoke test — new user → sign up → create facility → checkout → confirm plan activates via Stripe webhook | Fresh email + Stripe test card `4242 4242 4242 4242` |
+| 2 | Full new-user smoke test — sign up → create facility → select plan → confirm admin features unlock | Same as above |
+
+> Stripe test cards require no real bank account. Use card `4242 4242 4242 4242`, any future expiry, any CVC/ZIP.
 
 ### Not Required for Initial Go-Live (Post-Launch / Payroll Phase)
-- Update MongoDB `PayrollRun` with submitted `providerPayrollId`
-- Gusto webhook payroll status sync
-- Admin UI for payroll review and submission (Phase 3 roadmap)
-- Payroll must remain sandbox/pilot only until Phase 4 of payroll production roadmap is complete
+- Gusto production credentials (requires Embedded Payroll partnership approval from Gusto)
+- Pilot facility onboarding to real Gusto account (Stage 2 of staged rollout)
+- General payroll release to all tenants (Stage 3 of staged rollout)
 
 ---
 
 ## Recent Changes
+
+### July 11, 2026
+- **Gusto Payroll Phase 2 — Webhooks complete** — subscription registered and Active; HMAC signature verification live; webhook status sync working end-to-end
+- **Gusto Payroll Phase 3 — Admin UI enhancements** — confirmation modal before payroll submit; blocking items table for missing employee IDs; inline error display; formatted pay period dates
+- **Gusto Payroll Phase 4 — Security, testing & monitoring complete** — 39 Jest unit tests passing; failed payroll alert emails; payroll runbook published; staged rollout plan published
+- **CORS fix** — `https://api.timecapcha.app` added to backend allowed origins
+- **Webhook token secured** — verification token only logged on first boot when env var is not yet set
 
 ### July 6, 2026
 - **New facility onboarding fixed** — `TenantSetupPage.jsx` now shows a "Create a new facility" card alongside the invite code card; new subscribers no longer get stuck on invite-only screen after Clerk sign-up
