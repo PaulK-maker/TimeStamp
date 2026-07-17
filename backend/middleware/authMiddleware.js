@@ -311,10 +311,15 @@ module.exports = (req, res, next) => {
           })
           .catch((error) => {
             console.error("Clerk staff linking failed:", error);
+            const msg = error?.message || "";
+            let clientMessage = "Unauthorized";
+            if (msg.includes("already linked to a different account")) {
+              clientMessage = "Clerk email is already linked to a different account";
+            } else if (looksLikeClerkToken) {
+              clientMessage = "Clerk token verification failed";
+            }
             res.status(401).json({
-              message: looksLikeClerkToken
-                ? "Clerk token verification failed. Confirm the frontend publishable key and backend CLERK_SECRET_KEY belong to the same Clerk application, restart the backend after env changes, and ensure REACT_APP_API_BASE_URL points to this backend."
-                : "Unauthorized",
+              message: clientMessage,
               ...(process.env.NODE_ENV !== "production"
                 ? { detail: error?.message || String(error) }
                 : {}),
