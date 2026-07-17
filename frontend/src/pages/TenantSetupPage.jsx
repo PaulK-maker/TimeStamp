@@ -107,22 +107,16 @@ export default function TenantSetupPage() {
                 </div>
               ) : null}
 
-              <div
-                style={{
-                  marginTop: 16,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                  gap: 12,
-                }}
-              >
+              <div style={{ marginTop: 16, maxWidth: 480 }}>
+
                 {/* ── Create new facility ── */}
-                <div style={{ border: "2px solid #111", borderRadius: 10, padding: 16, background: "white" }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Create a new facility</div>
-                  <div style={{ color: "#555", marginBottom: 10 }}>
+                <div style={{ border: "2px solid #111", borderRadius: 10, padding: 20, background: "white" }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>🏠 Create a new facility</div>
+                  <div style={{ color: "#555", marginBottom: 12, fontSize: 14 }}>
                     You are the facility owner. Enter your facility name and we will set up your account.
                   </div>
 
-                  <label style={{ display: "block", fontSize: 13, color: "#444" }}>Facility name</label>
+                  <label style={{ display: "block", fontSize: 13, color: "#444", fontWeight: 600 }}>Facility name</label>
                   <input
                     value={facilityName}
                     onChange={(e) => setFacilityName(e.target.value)}
@@ -131,9 +125,10 @@ export default function TenantSetupPage() {
                       width: "100%",
                       padding: 12,
                       borderRadius: 8,
-                      border: "1px solid #ddd",
+                      border: "1px solid #ccc",
                       marginTop: 6,
                       boxSizing: "border-box",
+                      fontSize: 15,
                     }}
                   />
 
@@ -142,25 +137,33 @@ export default function TenantSetupPage() {
                     disabled={createSaving}
                     style={{
                       marginTop: 14,
-                      padding: "10px 12px",
+                      padding: "12px 16px",
                       borderRadius: 8,
                       border: "none",
                       background: "#111",
                       color: "#fff",
                       cursor: createSaving ? "not-allowed" : "pointer",
                       width: "100%",
-                      fontWeight: 600,
+                      fontWeight: 700,
+                      fontSize: 15,
                     }}
                   >
-                    {createSaving ? "Creating…" : "Create facility & continue"}
+                    {createSaving ? "Creating…" : "Create facility & continue →"}
                   </button>
                 </div>
 
+                {/* ── OR divider ── */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+                  <div style={{ flex: 1, height: 1, background: "#e0e0e0" }} />
+                  <span style={{ color: "#999", fontSize: 13, fontWeight: 600 }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "#e0e0e0" }} />
+                </div>
+
                 {/* ── Join with invite code ── */}
-                <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16, background: "white" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Join an existing facility with invite code</div>
-                  <div style={{ color: "#555", marginBottom: 10 }}>
-                      Use this only if another admin already created the facility and sent you an invite code. You must be signed in with that same email.
+                <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 20, background: "white" }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Join an existing facility</div>
+                  <div style={{ color: "#555", marginBottom: 12, fontSize: 14 }}>
+                    Use this only if an admin already created the facility and sent you a 6-digit invite code.
                   </div>
 
                   <label style={{ display: "block", fontSize: 13, color: "#444" }}>Invite code</label>
