@@ -7,9 +7,9 @@ node_modules/
 backend/.env
 backend/.env.*
 
-# Build outputs
-build/
-dist/
+# Build outputs (root-level only — frontend/build is tracked for deployment)
+/build/
+/dist/
 
 # Logs
 npm-debug.log*
