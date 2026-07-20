@@ -9,6 +9,16 @@ const {
   buildStripeReturnUrl,
 } = require("../config/stripeBilling");
 
+function respondStripeError(res, err, context) {
+  console.error(`🚨 Stripe error in ${context}:`, err?.message || err);
+  return res.status(502).json({
+    message: err?.message
+      ? `Stripe request failed: ${err.message}`
+      : "We couldn't complete that request with Stripe. Please try again shortly.",
+    code: "STRIPE_REQUEST_FAILED",
+  });
+}
+
 function serializePlan(plan) {
   if (!plan) return null;
 
@@ -183,50 +193,54 @@ async function createCheckoutSession(req, res) {
     });
   }
 
-  const customerId = await getOrCreateStripeCustomer(tenant);
-  const stripe = getStripeClient();
+  try {
+    const customerId = await getOrCreateStripeCustomer(tenant);
+    const stripe = getStripeClient();
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [
-      {
-        price: stripePriceId,
-        quantity: 1,
-      },
-    ],
-    success_url: buildStripeReturnUrl({
-      type: "success",
-      returnPath: returnPath || "/admin/billing?checkout=success",
-    }),
-    cancel_url: buildStripeReturnUrl({
-      type: "cancel",
-      returnPath: returnPath || "/admin/billing?checkout=cancel",
-    }),
-    metadata: {
-      tenantId: tenant._id.toString(),
-      tenantCode: tenant.tenantCode || "",
-      planId: plan.id,
-      adminUserId: req.user?.id || "",
-      adminEmail: req.user?.email || "",
-    },
-    subscription_data: {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [
+        {
+          price: stripePriceId,
+          quantity: 1,
+        },
+      ],
+      success_url: buildStripeReturnUrl({
+        type: "success",
+        returnPath: returnPath || "/admin/billing?checkout=success",
+      }),
+      cancel_url: buildStripeReturnUrl({
+        type: "cancel",
+        returnPath: returnPath || "/admin/billing?checkout=cancel",
+      }),
       metadata: {
         tenantId: tenant._id.toString(),
         tenantCode: tenant.tenantCode || "",
         planId: plan.id,
+        adminUserId: req.user?.id || "",
+        adminEmail: req.user?.email || "",
       },
-    },
-    client_reference_id: tenant._id.toString(),
-    allow_promotion_codes: false,
-  });
+      subscription_data: {
+        metadata: {
+          tenantId: tenant._id.toString(),
+          tenantCode: tenant.tenantCode || "",
+          planId: plan.id,
+        },
+      },
+      client_reference_id: tenant._id.toString(),
+      allow_promotion_codes: false,
+    });
 
-  return res.json({
-    url: session.url,
-    sessionId: session.id,
-    tenantId: tenant._id.toString(),
-    planId: plan.id,
-  });
+    return res.json({
+      url: session.url,
+      sessionId: session.id,
+      tenantId: tenant._id.toString(),
+      planId: plan.id,
+    });
+  } catch (err) {
+    return respondStripeError(res, err, "createCheckoutSession");
+  }
 }
 
 async function createPortalSession(req, res) {
@@ -240,16 +254,20 @@ async function createPortalSession(req, res) {
     });
   }
 
-  const stripe = getStripeClient();
-  const session = await stripe.billingPortal.sessions.create({
-    customer: tenant.stripeCustomerId,
-    return_url: buildStripeReturnUrl({
-      type: "portal",
-      returnPath: req.body?.returnPath || "/admin/billing",
-    }),
-  });
+  try {
+    const stripe = getStripeClient();
+    const session = await stripe.billingPortal.sessions.create({
+      customer: tenant.stripeCustomerId,
+      return_url: buildStripeReturnUrl({
+        type: "portal",
+        returnPath: req.body?.returnPath || "/admin/billing",
+      }),
+    });
 
-  return res.json({ url: session.url });
+    return res.json({ url: session.url });
+  } catch (err) {
+    return respondStripeError(res, err, "createPortalSession");
+  }
 }
 
 async function cancelSubscription(req, res) {
@@ -281,54 +299,58 @@ async function cancelSubscription(req, res) {
     });
   }
 
-  const stripe = getStripeClient();
-  const subscription = await stripe.subscriptions.retrieve(tenant.stripeSubscriptionId);
+  try {
+    const stripe = getStripeClient();
+    const subscription = await stripe.subscriptions.retrieve(tenant.stripeSubscriptionId);
 
-  if (!subscription || subscription.status === "canceled") {
-    tenant.stripeSubscriptionId = null;
-    tenant.stripePriceId = null;
-    tenant.subscriptionStatus = null;
-    tenant.currentPeriodEnd = null;
+    if (!subscription || subscription.status === "canceled") {
+      tenant.stripeSubscriptionId = null;
+      tenant.stripePriceId = null;
+      tenant.subscriptionStatus = null;
+      tenant.currentPeriodEnd = null;
+      await tenant.save();
+
+      return res.json({
+        message: "The subscription was already canceled in Stripe.",
+        mode: "already_canceled",
+        ...serializeTenantBilling(tenant),
+      });
+    }
+
+    if (subscription.cancel_at_period_end) {
+      return res.json({
+        message: "Cancellation is already scheduled for the end of the billing period.",
+        mode: "already_scheduled",
+        ...serializeTenantBilling(tenant),
+      });
+    }
+
+    const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+      cancel_at_period_end: true,
+    });
+
+    console.log("Subscription cancellation scheduled", {
+      tenantId: tenant._id.toString(),
+      tenantName: tenant.name,
+      stripeSubscriptionId: subscription.id,
+      cancellationReason,
+      requestedBy: req.user?.email || req.user?.id || "unknown",
+    });
+
+    tenant.subscriptionStatus = updatedSubscription.status || tenant.subscriptionStatus;
+    tenant.currentPeriodEnd = updatedSubscription.current_period_end
+      ? new Date(updatedSubscription.current_period_end * 1000)
+      : tenant.currentPeriodEnd;
     await tenant.save();
 
     return res.json({
-      message: "The subscription was already canceled in Stripe.",
-      mode: "already_canceled",
+      message: "Cancellation scheduled. The subscription will end at the close of the current billing period.",
+      mode: "scheduled",
       ...serializeTenantBilling(tenant),
     });
+  } catch (err) {
+    return respondStripeError(res, err, "cancelSubscription");
   }
-
-  if (subscription.cancel_at_period_end) {
-    return res.json({
-      message: "Cancellation is already scheduled for the end of the billing period.",
-      mode: "already_scheduled",
-      ...serializeTenantBilling(tenant),
-    });
-  }
-
-  const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
-    cancel_at_period_end: true,
-  });
-
-  console.log("Subscription cancellation scheduled", {
-    tenantId: tenant._id.toString(),
-    tenantName: tenant.name,
-    stripeSubscriptionId: subscription.id,
-    cancellationReason,
-    requestedBy: req.user?.email || req.user?.id || "unknown",
-  });
-
-  tenant.subscriptionStatus = updatedSubscription.status || tenant.subscriptionStatus;
-  tenant.currentPeriodEnd = updatedSubscription.current_period_end
-    ? new Date(updatedSubscription.current_period_end * 1000)
-    : tenant.currentPeriodEnd;
-  await tenant.save();
-
-  return res.json({
-    message: "Cancellation scheduled. The subscription will end at the close of the current billing period.",
-    mode: "scheduled",
-    ...serializeTenantBilling(tenant),
-  });
 }
 
 async function listInvoices(req, res) {
@@ -339,26 +361,30 @@ async function listInvoices(req, res) {
     return res.json({ invoices: [] });
   }
 
-  const stripe = getStripeClient();
-  const invoiceList = await stripe.invoices.list({
-    customer: tenant.stripeCustomerId,
-    limit: 12,
-  });
+  try {
+    const stripe = getStripeClient();
+    const invoiceList = await stripe.invoices.list({
+      customer: tenant.stripeCustomerId,
+      limit: 12,
+    });
 
-  return res.json({
-    invoices: (invoiceList.data || []).map((invoice) => ({
-      id: invoice.id,
-      status: invoice.status || null,
-      amountDue: invoice.amount_due,
-      amountPaid: invoice.amount_paid,
-      currency: invoice.currency,
-      hostedInvoiceUrl: invoice.hosted_invoice_url || null,
-      invoicePdf: invoice.invoice_pdf || null,
-      periodStart: invoice.period_start ? new Date(invoice.period_start * 1000) : null,
-      periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : null,
-      createdAt: invoice.created ? new Date(invoice.created * 1000) : null,
-    })),
-  });
+    return res.json({
+      invoices: (invoiceList.data || []).map((invoice) => ({
+        id: invoice.id,
+        status: invoice.status || null,
+        amountDue: invoice.amount_due,
+        amountPaid: invoice.amount_paid,
+        currency: invoice.currency,
+        hostedInvoiceUrl: invoice.hosted_invoice_url || null,
+        invoicePdf: invoice.invoice_pdf || null,
+        periodStart: invoice.period_start ? new Date(invoice.period_start * 1000) : null,
+        periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : null,
+        createdAt: invoice.created ? new Date(invoice.created * 1000) : null,
+      })),
+    });
+  } catch (err) {
+    return respondStripeError(res, err, "listInvoices");
+  }
 }
 
 module.exports = {

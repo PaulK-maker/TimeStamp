@@ -21,6 +21,13 @@ const { handlePayrollWebhook } = require("./controllers/payrollController");
 
 const app = express();
 
+// Safety net: an unhandled promise rejection in any async route handler
+// would otherwise crash the whole process (Node 15+ default) and take
+// down the app for every tenant. Log it and keep the server alive instead.
+process.on("unhandledRejection", (reason) => {
+  console.error("🚨 UNHANDLED REJECTION (server kept alive):", reason);
+});
+
 // 1. Connect to MongoDB
 connectDB();
 
