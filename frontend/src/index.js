@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { BrowserRouter, useNavigate } from "react-router-dom";
@@ -26,11 +26,12 @@ if (!publishableKey) {
 
 function ClerkProviderWithRouter() {
 	const navigate = useNavigate();
+	const clerkNavigate = useCallback((to) => navigate(to), [navigate]);
 
 	return (
 		<ClerkProvider
 			publishableKey={publishableKey}
-			navigate={(to) => navigate(to)}
+			navigate={clerkNavigate}
 		>
 			<App />
 		</ClerkProvider>
