@@ -6,6 +6,7 @@ import { getMe } from "../services/me";
 export default function TopNav() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const [role, setRole] = useState(null);
+  const [tenantName, setTenantName] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -13,6 +14,7 @@ export default function TopNav() {
     async function loadRole() {
       if (!isLoaded || !isSignedIn || !userId) {
         setRole(null);
+        setTenantName(null);
         return;
       }
 
@@ -20,9 +22,11 @@ export default function TopNav() {
         const me = await getMe({ cacheKey: userId });
         if (cancelled) return;
         setRole(me?.role ?? null);
+        setTenantName(me?.tenantName ?? null);
       } catch {
         if (cancelled) return;
         setRole(null);
+        setTenantName(null);
       }
     }
 
@@ -38,6 +42,19 @@ export default function TopNav() {
   return (
     <div className="topNav">
       <div className="topNavInner">
+        {tenantName ? (
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              padding: "6px 0",
+              color: "#111",
+            }}
+            title="Current facility"
+          >
+            🏠 {tenantName}
+          </div>
+        ) : null}
         <div className="topNavLinks">
           <NavLink
             to="/"

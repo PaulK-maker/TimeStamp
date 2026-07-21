@@ -196,6 +196,54 @@ export default function AdminBillingPage() {
     };
   }, []);
 
+  // After a successful Stripe checkout redirect, the webhook may take a few
+  // seconds to flip the tenant to active. Poll briefly and jump straight to
+  // the admin dashboard once access is granted, instead of leaving the admin
+  // stuck looking at the plan-selection screen.
+  useEffect(() => {
+    if (loading) return;
+
+    const checkoutState = new URLSearchParams(location.search).get("checkout");
+    if (checkoutState !== "success") return;
+
+    if (billingInfo?.accessGranted) {
+      navigate("/admin", { replace: true });
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const interval = setInterval(async () => {
+      attempts += 1;
+      try {
+        const meRes = await api.get("/billing/me");
+        if (cancelled) return;
+        setTenant(meRes.data?.tenant || null);
+        setCurrentPlan(meRes.data?.plan || null);
+        setBillingInfo(meRes.data?.billing || null);
+
+        if (meRes.data?.billing?.accessGranted) {
+          clearInterval(interval);
+          navigate("/admin", { replace: true });
+        }
+      } catch {
+        // ignore transient errors, keep polling
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   async function refreshBilling() {
     const meRes = await api.get("/billing/me");
     setTenant(meRes.data?.tenant || null);
