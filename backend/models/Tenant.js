@@ -71,6 +71,15 @@ const tenantSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Standard shift length this facility schedules around (hours per shift).
+    // Used to derive a "shifts worked" summary from total hours, alongside
+    // (not replacing) the authoritative punch-in/out hour totals.
+    shiftLengthHours: {
+      type: Number,
+      enum: [8, 12],
+      default: 8,
+    },
   },
   { timestamps: true }
 );

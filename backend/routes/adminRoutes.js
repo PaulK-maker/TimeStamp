@@ -9,6 +9,7 @@ const {
   promoteStaffToAdmin,
   demoteAdminToStaff,
   deleteUser,
+  updateShiftLength,
 } = require("../controllers/adminControllers");
 const {
   createPayrollRun,
@@ -74,6 +75,15 @@ router.delete(
   authorizeRoles("admin"),
   requireFeature("dataManagement"),
   deleteUser
+);
+
+// Facility shift-length setting (used to derive a shifts-worked summary)
+router.patch(
+  "/shift-length",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("dataManagement"),
+  updateShiftLength
 );
 
 // Missed punch request review

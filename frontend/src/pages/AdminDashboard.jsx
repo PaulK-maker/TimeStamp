@@ -269,6 +269,8 @@ const AdminDashboard = () => {
 
   const [tenantCode, setTenantCode] = useState(null);
   const [tenantName, setTenantName] = useState(null);
+  const [shiftLengthHours, setShiftLengthHours] = useState(8);
+  const [shiftLengthSaving, setShiftLengthSaving] = useState(false);
 
   const [missedPunchRequests, setMissedPunchRequests] = useState([]);
   const [mpLoading, setMpLoading] = useState(false);
@@ -306,6 +308,41 @@ const AdminDashboard = () => {
   const logout = useCallback(() => {
     navigate("/sign-out", { replace: true });
   }, [navigate]);
+
+  /* =======================
+     Shift length (8h / 12h) setting
+  ======================= */
+  const handleShiftLengthChange = useCallback(async (nextValue) => {
+    if (nextValue === shiftLengthHours || shiftLengthSaving) return;
+
+    const previousValue = shiftLengthHours;
+    setShiftLengthHours(nextValue);
+    setShiftLengthSaving(true);
+    setErrorMsg("");
+    try {
+      await api.patch("/admin/shift-length", { shiftLengthHours: nextValue });
+    } catch (err) {
+      setShiftLengthHours(previousValue);
+
+      if (err.response?.status === 403) {
+        const code = err.response?.data?.code;
+        const feature = err.response?.data?.feature;
+        if (code === "PLAN_REQUIRED") {
+          setErrorMsg("Select a plan on Billing to use this feature.");
+        } else if (code === "FEATURE_NOT_AVAILABLE") {
+          setErrorMsg(
+            `Your plan doesn’t include this feature${feature ? ` (${feature})` : ""}. Upgrade on Billing to unlock it.`
+          );
+        } else {
+          setErrorMsg(err.response?.data?.message || "Access denied.");
+        }
+      } else {
+        setErrorMsg(err.response?.data?.message || "Failed to update shift length.");
+      }
+    } finally {
+      setShiftLengthSaving(false);
+    }
+  }, [shiftLengthHours, shiftLengthSaving]);
 
   /* =======================
      Calculate totals
@@ -456,6 +493,7 @@ const AdminDashboard = () => {
         if (cancelled) return;
         setTenantCode(me?.tenantCode || null);
         setTenantName(me?.tenantName || null);
+        setShiftLengthHours(me?.shiftLengthHours === 12 ? 12 : 8);
         setSignedInEmail(
           me?.email ||
             me?.emailAddress ||
@@ -560,7 +598,10 @@ const AdminDashboard = () => {
   }, [filteredLogs, logPage]);
 
   const sortedTotals = useMemo(() => {
-    const next = [...totals];
+    const next = totals.map((item) => ({
+      ...item,
+      shiftCount: item.totalHours / shiftLengthHours,
+    }));
     next.sort((a, b) => {
       if (totalsSort === "name_asc" || totalsSort === "name_desc") {
         const aName = `${a.staff?.firstName || ""} ${a.staff?.lastName || ""}`.trim().toLowerCase();
@@ -575,7 +616,7 @@ const AdminDashboard = () => {
     });
 
     return next;
-  }, [totals, totalsSort]);
+  }, [totals, totalsSort, shiftLengthHours]);
 
   useEffect(() => {
     setLogPage(1);
@@ -990,6 +1031,46 @@ const AdminDashboard = () => {
         >
           <h2>📊 Total Hours per Staff Member</h2>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <span style={{ color: "#555", fontSize: 13 }}>Facility shift length:</span>
+            <div style={{ display: "inline-flex", border: "1px solid #ddd", borderRadius: 6, overflow: "hidden" }}>
+              <button
+                type="button"
+                onClick={() => handleShiftLengthChange(8)}
+                disabled={shiftLengthSaving}
+                style={{
+                  padding: "6px 12px",
+                  border: "none",
+                  background: shiftLengthHours === 8 ? "#111" : "#fff",
+                  color: shiftLengthHours === 8 ? "#fff" : "#111",
+                  cursor: shiftLengthSaving ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                8-hour shifts
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShiftLengthChange(12)}
+                disabled={shiftLengthSaving}
+                style={{
+                  padding: "6px 12px",
+                  border: "none",
+                  borderLeft: "1px solid #ddd",
+                  background: shiftLengthHours === 12 ? "#111" : "#fff",
+                  color: shiftLengthHours === 12 ? "#fff" : "#111",
+                  cursor: shiftLengthSaving ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                12-hour shifts
+              </button>
+            </div>
+            <span style={{ color: "#999", fontSize: 12 }}>
+              Shifts worked = total hours ÷ {shiftLengthHours}. An estimate for reference — hours worked stays authoritative.
+            </span>
+          </div>
+
           {sortedTotals.length === 0 ? (
             <p>No completed shifts.</p>
           ) : (
@@ -1017,6 +1098,7 @@ const AdminDashboard = () => {
                     <th align="left">Staff</th>
                     <th align="left">Email</th>
                     <th align="right">Total Hours</th>
+                    <th align="right">Shifts (~{shiftLengthHours}h)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1026,6 +1108,7 @@ const AdminDashboard = () => {
                       <td>{item.staff.firstName} {item.staff.lastName}</td>
                       <td>{item.staff.email || "-"}</td>
                       <td align="right"><strong>{item.totalHours.toFixed(2)} hrs</strong></td>
+                      <td align="right">{item.shiftCount.toFixed(1)}</td>
                     </tr>
                   ))}
                 </tbody>

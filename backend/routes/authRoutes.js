@@ -82,13 +82,15 @@ router.get("/me", requireAuth, async (req, res) => {
     const baseUser = req.user;
     let tenantCode = null;
     let tenantName = null;
+    let shiftLengthHours = 8;
 
     if (baseUser.tenantId) {
       const tenant = await Tenant.findById(baseUser.tenantId)
-        .select("tenantCode name")
+        .select("tenantCode name shiftLengthHours")
         .lean();
       tenantCode = tenant?.tenantCode || null;
       tenantName = tenant?.name || null;
+      shiftLengthHours = tenant?.shiftLengthHours || 8;
     }
 
     const staffMember = await resolveStaffForAuthUser(baseUser);
@@ -98,6 +100,7 @@ router.get("/me", requireAuth, async (req, res) => {
         ...baseUser,
         tenantCode,
         tenantName,
+        shiftLengthHours,
         defaultJob: staffMember?.defaultJob || null,
       },
     });

@@ -1,6 +1,7 @@
 const TimeEntry = require("../models/TimeEntry");
 const Staff = require("../models/staff");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
+const Tenant = require("../models/Tenant");
 
 function normalizeEmail(email) {
   return (email || "").trim().toLowerCase();
@@ -271,6 +272,46 @@ exports.demoteAdminToStaff = async (req, res) => {
     const status = error?.statusCode || 500;
     console.error(error);
     res.status(status).json({ message: error?.message || "Server error" });
+  }
+};
+
+/**
+ * PATCH /api/admin/shift-length
+ * Admin-only: Set the facility's standard shift length (8 or 12 hours).
+ * Used to derive a "shifts worked" summary from total hours worked.
+ * Body: { shiftLengthHours: 8 | 12 }
+ */
+exports.updateShiftLength = async (req, res) => {
+  try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const shiftLengthHours = Number(req.body?.shiftLengthHours);
+    if (![8, 12].includes(shiftLengthHours)) {
+      return res.status(400).json({ message: "shiftLengthHours must be 8 or 12" });
+    }
+
+    const tenant = await Tenant.findByIdAndUpdate(
+      adminTenantId,
+      { shiftLengthHours },
+      { new: true, runValidators: true }
+    );
+    if (!tenant) {
+      return res.status(404).json({ message: "Tenant not found" });
+    }
+
+    return res.json({
+      message: "Shift length updated",
+      shiftLengthHours: tenant.shiftLengthHours,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
