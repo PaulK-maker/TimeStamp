@@ -21,7 +21,7 @@ const PLANS = {
       viewLogs: true,
       dataManagement: true,
       missedPunchReview: true,
-      printing: false,
+      printing: true,
       payroll: false,
     },
   },
