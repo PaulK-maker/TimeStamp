@@ -618,6 +618,47 @@ const AdminDashboard = () => {
     return next;
   }, [totals, totalsSort, shiftLengthHours]);
 
+  /* =======================
+     Overtime alerts (current work week, Mon-Sun)
+     Two-tier: "approaching" starts 2 hrs before the 40-hr threshold,
+     "overtime" once actually at/over 40 hrs.
+  ======================= */
+  const OVERTIME_THRESHOLD_HOURS = 40;
+  const OVERTIME_WARNING_BUFFER_HOURS = 2;
+
+  const overtimeAlerts = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(now.getDate() + diffToMonday);
+
+    const weekTotals = {};
+
+    logs.forEach((log) => {
+      if (!log.punchIn || !log.punchOut || !log.staff?._id) return;
+      const punchInDate = new Date(log.punchIn);
+      if (punchInDate < weekStart) return;
+
+      const hours = (new Date(log.punchOut) - punchInDate) / (1000 * 60 * 60);
+      const staffId = log.staff._id;
+
+      if (!weekTotals[staffId]) {
+        weekTotals[staffId] = { staff: log.staff, hours: 0 };
+      }
+      weekTotals[staffId].hours += hours;
+    });
+
+    return Object.values(weekTotals)
+      .filter((entry) => entry.hours >= OVERTIME_THRESHOLD_HOURS - OVERTIME_WARNING_BUFFER_HOURS)
+      .map((entry) => ({
+        ...entry,
+        isOvertime: entry.hours >= OVERTIME_THRESHOLD_HOURS,
+      }))
+      .sort((a, b) => b.hours - a.hours);
+  }, [logs]);
+
   useEffect(() => {
     setLogPage(1);
   }, [logSearchText, logDateStart, logDateEnd, logSort]);
@@ -1020,6 +1061,60 @@ const AdminDashboard = () => {
             </table>
           )}
         </div>
+
+        {/* Overtime Alerts */}
+        {overtimeAlerts.length > 0 ? (
+          <div
+            style={{
+              background: "#fff3f3",
+              border: "1px solid #ffd7d7",
+              padding: "20px",
+              borderRadius: "8px",
+              marginBottom: "20px",
+            }}
+          >
+            <h2 style={{ margin: "0 0 6px 0", color: "#b00020" }}>⚠️ Overtime This Week</h2>
+            <div style={{ color: "#555", fontSize: 13, marginBottom: 10 }}>
+              Staff approaching or over {OVERTIME_THRESHOLD_HOURS} hours for the current work week (Mon–Sun).
+            </div>
+            <table width="100%" cellPadding="8" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th align="left">Staff</th>
+                  <th align="right">Hours This Week</th>
+                  <th align="right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overtimeAlerts.map((item) => (
+                  <tr key={item.staff._id} style={{ borderTop: "1px solid #ffd7d7" }}>
+                    <td>{item.staff.firstName} {item.staff.lastName}</td>
+                    <td align="right">
+                      <strong style={{ color: item.isOvertime ? "#b00020" : "#8a6d00" }}>
+                        {item.hours.toFixed(2)} hrs
+                      </strong>
+                    </td>
+                    <td align="right">
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: item.isOvertime ? "#b00020" : "#8a6d00",
+                          background: item.isOvertime ? "#ffe1e1" : "#fff3cd",
+                        }}
+                      >
+                        {item.isOvertime ? "Overtime" : "Approaching"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
         {/* Totals */}
         <div
