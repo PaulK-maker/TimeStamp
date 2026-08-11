@@ -17,8 +17,8 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
-const CLIENT_ID = "j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I";
-const CLIENT_SECRET = "i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U";
+const CLIENT_ID = process.env.GUSTO_CLIENT_ID;
+const CLIENT_SECRET = process.env.GUSTO_CLIENT_SECRET;
 const COMPANY_UUID = process.env.GUSTO_PARTNER_COMPANY_UUID; // 44196a95-66a8-428e-86ea-9cb1183b966d
 const REFRESH_TOKEN = process.env.GUSTO_PARTNER_COMPANY_REFRESH;
 const BANK_ACCOUNT_UUID = "3c305b5c-5800-4eec-bcc7-06b144ac0a05";

@@ -263,10 +263,14 @@ app.get("/api/auth/gusto/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send("No authorization code received.");
 
+  const clientId = process.env.GUSTO_CLIENT_ID;
+  const clientSecret = process.env.GUSTO_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return res.status(503).send("GUSTO_CLIENT_ID / GUSTO_CLIENT_SECRET are not configured on this server.");
+  }
+
   const https = require("https");
-  const clientId = "j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I";
-  const clientSecret = "i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U";
-  const redirectUri = "http://localhost:5001/api/auth/gusto/callback";
+  const redirectUri = process.env.GUSTO_OAUTH_REDIRECT_URI || "http://localhost:5001/api/auth/gusto/callback";
 
   const body = new URLSearchParams({
     client_id: clientId,

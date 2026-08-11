@@ -377,7 +377,7 @@ Define plans centrally (backend config), with two key dimensions:
 Current plan rules:
 
 - Free: up to **2 caregivers**, no `dataManagement`, no `printing`
-- Standard: **$35/mo**, up to **20 caregivers**, `dataManagement` yes, `printing` no, `payroll` no
+- Standard: **$35/mo**, up to **20 caregivers**, `dataManagement` yes, `printing` yes, `payroll` no
 - Pro: **$55/mo**, up to **40 caregivers**, `dataManagement` yes, `printing` yes, `payroll` yes
 
 ### Tenant identity & binding
@@ -538,6 +538,14 @@ Policy boundary:
 
 For detailed manual verification, see `project-guide/payroll-postman-test-guide.md`.
 For the phased production delivery plan, see `project-guide/payroll-production-roadmap.md`.
+
+#### Completion plan update (August 5, 2026)
+The roadmap was re-checked against Gusto Embedded's own "5 Key Steps" guide (Requirements → Design → Integrate → Test → Deploy — [source](https://embedded.gusto.com/blog/how-to-embed-payroll-5-key-steps/)). That review found two concrete gaps not previously tracked, now the top priority items in `payroll-production-roadmap.md`:
+
+1. **OAuth token refresh is script-only, not server-side.** The deployed `gustoProvider.js` reads a static access token from env with no refresh logic; only the offline `gustoOnboardAndSubmit.js` script rotates and saves tokens. Live admin-triggered submissions will fail once the ~2-hour token expires. Must be fixed before payroll can run reliably outside a manually-babysat sandbox session.
+2. **Payroll access isn't role-scoped.** Any `admin` with the `payroll` feature flag can both view and submit payroll runs — there's no separate "can view" vs. "can run/approve" permission, which Gusto's guide flags as a persona/access-level design step, not an afterthought.
+
+Full gap-by-gap breakdown, including test-coverage and deploy-readiness gaps, is in the new "Alignment With Gusto's 5-Step Embedded Payroll Framework" section at the top of `payroll-production-roadmap.md`.
 
 #### Critical compliance boundary
 Do not build payroll logic directly in this app.

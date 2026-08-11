@@ -133,6 +133,7 @@ module.exports = (req, res, next) => {
             sessionId: clerkAuth.sessionId,
             email: staffMember.email,
             tenantId: staffMember.tenantId ? staffMember.tenantId.toString() : null,
+            payrollRunAccess: Boolean(staffMember.payrollRunAccess),
           };
         };
 
@@ -369,6 +370,7 @@ module.exports = (req, res, next) => {
           staffId: decoded.id,
           email: staffMember?.email || null,
           tenantId: staffMember?.tenantId ? staffMember.tenantId.toString() : null,
+          payrollRunAccess: Boolean(staffMember?.payrollRunAccess),
         };
         return next();
       })
@@ -379,6 +381,7 @@ module.exports = (req, res, next) => {
           role: decoded.role,
           email: null,
           tenantId: null,
+          payrollRunAccess: false,
         };
         return next();
       });

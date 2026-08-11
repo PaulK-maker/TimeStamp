@@ -126,6 +126,14 @@ const staffSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // View-only vs. run/submit split within the "admin" role: any admin can
+    // view payroll runs, but only admins with this flag can create drafts or
+    // submit them to Gusto. Defaults to false; the facility creator is the
+    // only one granted true automatically (see tenantController.bootstrapTenant).
+    payrollRunAccess: {
+      type: Boolean,
+      default: false,
+    },
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Tenant",

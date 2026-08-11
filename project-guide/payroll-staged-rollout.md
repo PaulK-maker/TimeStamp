@@ -32,8 +32,13 @@ Stage 3 — General Release (all tenants)
 - [x] 39 unit tests passing (webhook sig, status mapping, profile validation)
 - [x] Runbook documented for incident response
 
+### Newly identified gaps (August 5, 2026 review)
+- [x] Automated OAuth token refresh runs inside the deployed backend — fixed August 5, 2026
+- [ ] Payroll access is split by role (view vs. run/submit), not granted to every `admin`
+- [ ] Sandbox coverage includes at least one rejected/failed submission, one multi-employee run, and the new token-refresh path — not just the single happy-path run completed so far
+
 ### Exit Criteria
-All of the above must be ✅ before proceeding to Stage 2.
+All of the above, including the newly identified gaps, must be ✅ before proceeding to Stage 2.
 
 ---
 
@@ -42,6 +47,8 @@ All of the above must be ✅ before proceeding to Stage 2.
 **Goal**: Process at least 2 real pay cycles with a live Gusto Embedded account for a known, cooperative facility owner before opening to all tenants.
 
 **Prerequisite**: Gusto must approve your Embedded Payroll partnership application for production access. Contact embedded@gusto.com to start this process if not already in progress.
+
+**Update (August 5, 2026):** the OAuth access-token refresh blocker below is now fixed — `gustoProvider.js` refreshes and persists tokens automatically via MongoDB (see `payroll-production-roadmap.md` and Runbook Incident 6). One new operational rule from that fix: don't run `gustoOnboardAndSubmit.js` or other local token-refresh scripts against the same Gusto app credentials while the deployed server is live — Gusto refresh tokens are single-use, so the two will race and invalidate each other.
 
 ### Setup Steps
 

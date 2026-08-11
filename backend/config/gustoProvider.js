@@ -1,5 +1,8 @@
 const axios = require("axios");
 const crypto = require("crypto");
+const GustoToken = require("../models/GustoToken");
+
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh 5 minutes before expiry
 
 class PayrollProviderError extends Error {
   constructor(message, { statusCode = 500, code = "PAYROLL_PROVIDER_ERROR", details = null } = {}) {
@@ -30,7 +33,114 @@ function getGustoProviderConfig() {
       process.env.PAYROLL_WEBHOOK_SECRET ||
       ""
     ).trim(),
+    clientId: (process.env.GUSTO_CLIENT_ID || "").trim() || null,
+    clientSecret: (process.env.GUSTO_CLIENT_SECRET || "").trim() || null,
+    bootstrapRefreshToken: (process.env.GUSTO_REFRESH_TOKEN || "").trim() || null,
   };
+}
+
+function buildOauthTokenUrl(config) {
+  const baseUrl = (config.apiBaseUrl || "https://api.gusto-demo.com").replace(/\/+$/, "");
+  return `${baseUrl}/oauth/token`;
+}
+
+// Loads the persisted Gusto token pair, seeding it from env vars on first run
+// so existing sandbox setups (GUSTO_COMPANY_ACCESS_TOKEN / GUSTO_REFRESH_TOKEN)
+// keep working without any manual migration step.
+async function getOrBootstrapGustoToken(config) {
+  let tokenDoc = await GustoToken.findOne({ provider: "gusto" });
+  if (tokenDoc) return tokenDoc;
+
+  if (!config.companyAccessToken || !config.bootstrapRefreshToken) {
+    throw new PayrollProviderError(
+      "No stored Gusto token found and no GUSTO_COMPANY_ACCESS_TOKEN/GUSTO_REFRESH_TOKEN bootstrap values are configured.",
+      { statusCode: 503, code: "GUSTO_TOKEN_BOOTSTRAP_MISSING" }
+    );
+  }
+
+  tokenDoc = await GustoToken.create({
+    provider: "gusto",
+    companyId: config.companyId,
+    accessToken: config.companyAccessToken,
+    refreshToken: config.bootstrapRefreshToken,
+    // Unknown real expiry for a bootstrapped token — force a refresh on first
+    // use so we learn the true expires_in from Gusto instead of guessing.
+    accessTokenExpiresAt: null,
+  });
+
+  return tokenDoc;
+}
+
+async function refreshGustoAccessToken(tokenDoc, config) {
+  if (!config.clientId || !config.clientSecret) {
+    throw new PayrollProviderError(
+      "Gusto access token needs to be refreshed but GUSTO_CLIENT_ID/GUSTO_CLIENT_SECRET are not configured.",
+      { statusCode: 503, code: "GUSTO_OAUTH_CONFIG_MISSING" }
+    );
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: tokenDoc.refreshToken,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+  }).toString();
+
+  let response;
+  try {
+    response = await axios.post(buildOauthTokenUrl(config), body, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 15000,
+    });
+  } catch (error) {
+    throw new PayrollProviderError(
+      "Gusto OAuth token refresh request failed.",
+      {
+        statusCode: error.response?.status || 502,
+        code: "GUSTO_TOKEN_REFRESH_FAILED",
+        details: error.response?.data || null,
+      }
+    );
+  }
+
+  const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } =
+    response.data || {};
+
+  if (!accessToken || !refreshToken) {
+    throw new PayrollProviderError(
+      "Gusto OAuth token refresh response was missing access_token or refresh_token.",
+      { statusCode: 502, code: "GUSTO_TOKEN_REFRESH_INVALID_RESPONSE" }
+    );
+  }
+
+  tokenDoc.accessToken = accessToken;
+  // Gusto refresh tokens are single-use and rotate on every call — always
+  // persist the new one immediately or the next refresh will fail.
+  tokenDoc.refreshToken = refreshToken;
+  tokenDoc.accessTokenExpiresAt = new Date(
+    Date.now() + (Number(expiresIn) > 0 ? Number(expiresIn) : 7200) * 1000
+  );
+  await tokenDoc.save();
+
+  return tokenDoc;
+}
+
+// Ensures the config object carries a live, non-expired Gusto access token,
+// refreshing (and persisting) it first if it is missing or close to expiry.
+// This replaces the previous flow, where only a manually-run local script
+// rotated tokens and saved them to a .env file the deployed server never saw.
+async function ensureFreshGustoAccessToken(config) {
+  const tokenDoc = await getOrBootstrapGustoToken(config);
+
+  const needsRefresh =
+    !tokenDoc.accessTokenExpiresAt ||
+    tokenDoc.accessTokenExpiresAt.getTime() - Date.now() < ACCESS_TOKEN_REFRESH_BUFFER_MS;
+
+  if (needsRefresh) {
+    await refreshGustoAccessToken(tokenDoc, config);
+  }
+
+  return tokenDoc.accessToken;
 }
 
 function getWebhookSignature(headers = {}) {
@@ -831,20 +941,22 @@ async function submitPayrollRun(payrollRun, items, options = {}) {
     };
   }
 
-  if (!config.companyAccessToken) {
+  if (!config.companyId) {
     throw new PayrollProviderError(
-      "Missing Gusto live submission prerequisites. A company access token is required.",
+      "Missing Gusto live submission prerequisites. A company id is required.",
       {
         statusCode: 503,
         code: "GUSTO_SUBMIT_CONFIG_MISSING",
-        details: {
-          hasCompanyAccessToken: Boolean(config.companyAccessToken),
-        },
+        details: { hasCompanyId: Boolean(config.companyId) },
       }
     );
   }
 
   try {
+    // Refresh (and persist) the access token here, once per submission,
+    // rather than relying on a static env var or a manually re-run script.
+    config.companyAccessToken = await ensureFreshGustoAccessToken(config);
+
     const resolvedPayroll = await resolveGustoPayrollForRun(payrollRun, config);
     const companyUuid = resolvedPayroll.companyUuid;
     const payrollUuid = resolvedPayroll.payrollUuid;

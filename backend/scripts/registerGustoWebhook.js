@@ -30,8 +30,8 @@
 require("dotenv").config();
 const axios = require("axios");
 
-const CLIENT_ID = "j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I";
-const CLIENT_SECRET = "i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U";
+const CLIENT_ID = process.env.GUSTO_CLIENT_ID;
+const CLIENT_SECRET = process.env.GUSTO_CLIENT_SECRET;
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const API_BASE = "https://api.gusto-demo.com";
 

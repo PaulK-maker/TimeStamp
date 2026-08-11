@@ -154,6 +154,41 @@ db.payrollruns.updateOne(
 
 ---
 
+## Incident 6 — Payroll Submit Fails With Gusto Token Errors
+
+**Status: automated refresh shipped August 5, 2026.** `backend/config/gustoProvider.js` now stores the live Gusto access/refresh token pair in MongoDB (`GustoToken` collection, single document with `provider: "gusto"`) and refreshes automatically — 5 minutes before expiry — inside `ensureFreshGustoAccessToken()`, called once at the start of every `submitPayrollRun`. On first run ever, it bootstraps that Mongo document from `GUSTO_COMPANY_ACCESS_TOKEN` / `GUSTO_REFRESH_TOKEN` in the environment; after that, the environment variables are no longer read and the Mongo document is the source of truth. This replaces the old failure mode where a static env token silently expired every ~2 hours with no recovery.
+
+The remaining ways this can still fail:
+
+### Symptom A — `GUSTO_OAUTH_CONFIG_MISSING`
+The token needed a refresh but `GUSTO_CLIENT_ID` / `GUSTO_CLIENT_SECRET` aren't set in the environment the backend is running in (e.g. set locally but not on Render).
+
+**Fix:** set both in the Render environment variables and redeploy. No token exchange happens without them.
+
+### Symptom B — `GUSTO_TOKEN_REFRESH_FAILED` or a 400 from Gusto's `/oauth/token`
+The stored refresh token itself is no longer valid — most likely because it was already consumed by something else (e.g. someone ran `gustoOnboardAndSubmit.js` locally and it rotated the token, but the Mongo document wasn't updated, so the two fell out of sync). Gusto refresh tokens are single-use per the roadmap doc's "Critical Lessons Learned" — running the local script and the deployed server against the same refresh token will race.
+
+**Fix:**
+1. Run the manual OAuth flow (`node backend/scripts/getGustoToken.js` or the `/api/auth/gusto/callback` route) to get a brand-new `access_token` + `refresh_token` pair.
+2. Update the Mongo document directly (not `.env` — the server no longer reads the env vars after first bootstrap):
+   ```bash
+   db.gustotokens.updateOne(
+     { provider: "gusto" },
+     { $set: {
+       accessToken: "NEW_ACCESS_TOKEN",
+       refreshToken: "NEW_REFRESH_TOKEN",
+       accessTokenExpiresAt: null   // null forces an immediate refresh-and-verify on next use
+     }}
+   )
+   ```
+   Or delete the document entirely (`db.gustotokens.deleteOne({ provider: "gusto" })`) and update `GUSTO_COMPANY_ACCESS_TOKEN` / `GUSTO_REFRESH_TOKEN` in the environment — the next submission will re-bootstrap from those.
+3. **Going forward, do not run `gustoOnboardAndSubmit.js` (or any other local script that calls the refresh endpoint) against the same Gusto app credentials while the deployed server is also live** — pick one as the source of truth for token rotation, since Gusto invalidates the previous refresh token the moment either side rotates it.
+
+### Symptom C — `GUSTO_TOKEN_BOOTSTRAP_MISSING`
+No Mongo document exists yet and `GUSTO_COMPANY_ACCESS_TOKEN` / `GUSTO_REFRESH_TOKEN` aren't set in the environment either. Set them once (from a manual OAuth flow) to seed the first bootstrap.
+
+---
+
 ## Routine Checks (Weekly)
 
 Before each payroll run:

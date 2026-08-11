@@ -69,7 +69,7 @@ exports.bootstrapTenant = async (req, res) => {
         _id: staffMember._id,
         $or: [{ tenantId: { $exists: false } }, { tenantId: null }],
       },
-      { $set: { tenantId: tenant._id, role: "admin" } },
+      { $set: { tenantId: tenant._id, role: "admin", payrollRunAccess: true } },
       { new: true }
     );
 

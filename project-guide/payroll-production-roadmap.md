@@ -2,6 +2,79 @@
 
 This document describes the path from the current payroll foundation in TimeStamp to a production-ready, provider-backed payroll integration.
 
+*Last reviewed: August 5, 2026 — cross-checked against Gusto Embedded's "5 Key Steps" framework ([source](https://embedded.gusto.com/blog/how-to-embed-payroll-5-key-steps/)). No payroll code has changed since the July 11, 2026 status below; this review only adds gap analysis and re-prioritizes remaining work.*
+
+## Alignment With Gusto's 5-Step Embedded Payroll Framework
+
+Gusto's own guidance for embedding payroll groups the work into five steps: **Requirements & Goals → Design → Integrate → Test → Deploy**. Mapping TimeStamp's actual code and docs against each step surfaces a few concrete gaps that weren't visible when the roadmap was organized by internal phase number alone.
+
+### Step 1 — Requirements & Goals
+**Done:**
+- Compliance boundary is explicit and documented (see "Policy Boundary" above) — TimeStamp deliberately stays the operational layer, Gusto stays the compliance/payment layer.
+- Product fit decided: payroll is a Pro-plan ($55/mo) feature, gated server-side via `requireFeature("payroll")`.
+- Data model requirements defined: staff payroll profile metadata, draft runs, run-item snapshots — no SSNs/bank/tax data stored locally.
+
+**Remaining:**
+- None outstanding — this step is effectively complete.
+
+### Step 2 — Design The Experience
+Gusto's guide stresses designing for distinct personas (admin/approver, manager, employee) with different access levels — payroll access should be limited to whoever actually needs to view compensation, edit settings, or run/approve payroll.
+
+**Done:**
+- Admin-facing review/submit flow exists (`AdminPayrollPage`) with a confirmation modal, blocking-items table, and inline error display.
+
+**Remaining (real gap):**
+- **No role granularity within "admin."** Every user with the `admin` role and the `payroll` feature flag can both *view* and *run/submit* payroll (`backend/routes/adminRoutes.js:115-143` gates all payroll routes with the same `requireRole("admin")` + `requireFeature("payroll")` pair). There's no split between "can view payroll history" and "can submit a payroll run" — Gusto's guide specifically calls this out as a security/compliance planning step, not an afterthought.
+- **No employee-facing view.** Staff/caregivers have no way to see their own pay history or an earnings preview — `plan.md`'s "Additional Recommendations" already lists "Earnings Preview" as undone. Worth deciding now whether that's in scope before general release, since retrofitting a new persona later is more expensive than designing for it up front.
+
+### Step 3 — Integrate
+Gusto's guide frames this as choosing between raw API, SDK, or embedded UI components. TimeStamp chose the **API-only path** (fully custom UI, full control) — consistent with keeping TimeStamp as the operational layer.
+
+**Done:**
+- Full create → prepare → update → calculate → poll → submit orchestration against the Gusto API (`backend/config/gustoProvider.js`).
+- Per-job, per-week overtime-aware hour distribution mapped into Gusto's `employee_compensations` rows.
+- Webhook ingestion with HMAC-SHA256 signature verification and event reconciliation.
+
+**Fixed (August 5, 2026):** `gustoProvider.js` now persists the live access/refresh token pair in MongoDB (`GustoToken` model) and refreshes it automatically 5 minutes before expiry via `ensureFreshGustoAccessToken()`, called once at the start of every `submitPayrollRun`. It bootstraps from `GUSTO_COMPANY_ACCESS_TOKEN` / `GUSTO_REFRESH_TOKEN` on first run only; after that the Mongo document is the source of truth, not the env vars. See Runbook Incident 6 for the remaining manual-recovery cases (missing client credentials, or a refresh token invalidated by running the local script against the same credentials concurrently — don't do that anymore, pick one source of token rotation).
+
+**Also fixed (August 5, 2026):** the Gusto sandbox `client_id`/`client_secret` were hardcoded in `server.js` and 6 tracked scripts (committed to git since 2026-05-18); all now read `GUSTO_CLIENT_ID` / `GUSTO_CLIENT_SECRET` from the environment. The exposed value is sandbox-only; rotating it with Gusto is still recommended since it remains recoverable from git history.
+
+**Remaining:**
+- Provider error normalization exists (`extractGustoErrorMessage`) but hasn't been exercised against real Gusto error payloads beyond the ones seen in manual testing.
+- No automated test yet covers the new refresh path (bootstrap, proactive refresh, and the refresh-token-invalid failure mode) — worth adding before pilot.
+
+### Step 4 — Test
+Gusto's guide recommends using the sandbox to exercise both the happy path and failure modes (timeouts, rate limits, rejected submissions) before going live.
+
+**Done:**
+- Real Gusto sandbox used end-to-end: company onboarding, employee onboarding, bank verification automation, one full payroll submitted and accepted (202).
+- 39 Jest unit tests covering webhook signature verification, status mapping, and payroll profile validation.
+- Manual verification steps documented in `payroll-postman-test-guide.md`.
+
+**Remaining:**
+- All testing so far covers exactly **one** sandbox company and **one** employee. No test coverage exists for: multiple employees in one run, a rejected/failed Gusto submission, a Gusto API timeout, or rate-limiting behavior — the specific failure classes Gusto's guide calls out by name.
+- Unit tests mock the provider layer; there is no automated (CI-runnable) integration test that hits the live sandbox API, so the sandbox flow is currently only verified by hand.
+
+### Step 5 — Deploy
+Gusto's guide notes that moving from pilot to production depends on Gusto's own partner support/QA process, not just internal readiness.
+
+**Done:**
+- Staged rollout plan written (`payroll-staged-rollout.md`): sandbox → pilot → general release, with exit criteria and rollback steps.
+- Incident runbook written (`payroll-runbook.md`).
+- Failed-payroll alert emails wired to `payroll.processing_failed` / `payroll.partially_reversed` webhook events.
+
+**Remaining:**
+- **Gusto production/embedded-partner approval is still outstanding** — this is external to TimeStamp and gates any real (non-sandbox) payroll run. Sandbox company approval (May 26, 2026) is not the same as production access.
+- No pilot facility has been onboarded yet; the staged rollout plan is written but untested against a real tenant.
+- The token-refresh gap above must close before a pilot tenant can rely on payroll working reliably outside of a manually-babysat session.
+
+### Net new priority order (result of this review)
+1. ~~Fix OAuth token refresh in the live server path~~ — **done August 5, 2026** (`GustoToken` model + `ensureFreshGustoAccessToken()`); see Runbook Incident 6.
+2. **Add a narrower payroll-admin permission** (view vs. run/submit) so payroll access matches Gusto's persona/access-level guidance.
+3. **Expand sandbox test coverage** to rejected submissions, timeouts, multi-employee runs, and the new token-refresh path before pilot.
+4. **Decide and scope (or explicitly defer) the employee-facing earnings view** so it doesn't get bolted on late.
+5. Continue pursuing Gusto production/embedded-partner approval in parallel — it's on Gusto's timeline, not blocked by TimeStamp's remaining work.
+
 ## Current State
 
 TimeStamp already supports:
@@ -222,13 +295,16 @@ Exit criteria:
 
 ## What Is Still Unfinished Right Now
 
-As of the current repository state, the following items are still missing for full payroll integration:
+As of August 5, 2026, the following items are still missing for full payroll integration:
 
-- webhook subscription creation and verification against Gusto APIs (requires a public URL, e.g. via ngrok or deployed backend)
+- **role-scoped payroll access** (view-only vs. run/submit) — currently any `admin` with the `payroll` feature flag can submit a run
+- automated test coverage for the new Mongo-backed OAuth refresh path (bootstrap, proactive refresh, refresh-failure recovery)
+- sandbox test coverage for failure modes: rejected submissions, timeouts, rate limiting, multi-employee runs
+- Gusto production/embedded-partner approval (external, gates any non-sandbox run)
+- pilot facility onboarding and validation against a real tenant
+- decision on scope for an employee-facing earnings/pay-history view
 - richer payroll failure reconciliation using Gusto payroll fetch / processing-request details
-- production monitoring, alerting, and support runbooks
-- backend automated tests for payroll workflows
-- full sandbox end-to-end payroll run submission and pilot validation
+- full sandbox end-to-end payroll run submission with more than one employee
 
 **Completed since initial roadmap:**
 - exact Gusto submission API contract locked (Bearer token, PUT `.../submit`, 202 Accepted)
@@ -511,3 +587,5 @@ Before payroll should be considered ready for production, all of the following s
 - pilot rollout is completed before general release
 - TimeStamp stays within the provider-backed compliance boundary
 - SSNs, tax forms, and bank details are not stored locally
+- [x] OAuth access/refresh tokens are rotated automatically by the running server (shipped August 5, 2026 — `GustoToken` model + `ensureFreshGustoAccessToken()`)
+- payroll access is split by role (who can view vs. who can run/submit), not granted wholesale to every admin

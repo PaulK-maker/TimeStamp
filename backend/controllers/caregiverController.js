@@ -241,7 +241,7 @@ const getStaff = async (req, res) => {
 
     const staffMembers = await Staff.find({ tenantId })
       .select(
-        "firstName lastName email role clerkUserId isActive payrollProfile defaultJob createdAt updatedAt"
+        "firstName lastName email role clerkUserId isActive payrollRunAccess payrollProfile defaultJob createdAt updatedAt"
       )
       .populate("defaultJob", "name gustoJobUuid isActive");
     res.json(staffMembers);

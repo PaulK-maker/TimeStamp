@@ -58,6 +58,7 @@ export default function UserManagementTable() {
   const [statusFilter, setStatusFilter] = useState("active"); // active | inactive | all
 
   const [currentStaffId, setCurrentStaffId] = useState(null);
+  const [currentPayrollRunAccess, setCurrentPayrollRunAccess] = useState(false);
   const [pendingById, setPendingById] = useState({});
   const [toast, setToast] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -77,6 +78,7 @@ export default function UserManagementTable() {
       const res = await api.get("/auth/me");
       const id = res?.data?.user?.staffId || res?.data?.user?.id || null;
       setCurrentStaffId(id);
+      setCurrentPayrollRunAccess(Boolean(res?.data?.user?.payrollRunAccess));
     } catch {
       // Non-fatal: UI will still work, but self-protect buttons may not disable.
     }
@@ -230,6 +232,43 @@ export default function UserManagementTable() {
       }
     },
     [clearPending, currentStaffId, setPending, showToast, updateStaffLocal]
+  );
+
+  const handleTogglePayrollAccess = useCallback(
+    async (c) => {
+      if (!c?._id || c.role !== "admin") return;
+
+      const granting = !c.payrollRunAccess;
+      const endpoint = granting ? "/admin/payroll-access/grant" : "/admin/payroll-access/revoke";
+
+      if (!granting) {
+        const ok = window.confirm(
+          `Revoke payroll run/submit access for ${c.email}? They will still be able to view payroll runs, just not create or submit them.`
+        );
+        if (!ok) return;
+      }
+
+      setPending(c._id, { action: "payrollAccess" });
+
+      try {
+        await api.post(endpoint, { staffId: c._id, email: c.email });
+        updateStaffLocal(c._id, { payrollRunAccess: granting });
+        showToast(
+          "success",
+          granting
+            ? `Granted payroll run/submit access to ${c.email}.`
+            : `Revoked payroll run/submit access from ${c.email}.`
+        );
+      } catch (e) {
+        showToast(
+          "error",
+          e?.response?.data?.message || `Failed to update payroll access for ${c.email}`
+        );
+      } finally {
+        clearPending(c._id);
+      }
+    },
+    [clearPending, setPending, showToast, updateStaffLocal]
   );
 
   const handleDelete = useCallback(
@@ -411,6 +450,7 @@ export default function UserManagementTable() {
               <th align="left">Email</th>
               <th align="left">Role</th>
               <th align="left">Default Job</th>
+              <th align="left">Payroll Access</th>
               <th align="left">Status</th>
               <th align="left">Actions</th>
             </tr>
@@ -465,6 +505,58 @@ export default function UserManagementTable() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    {c.role === "admin" ? (
+                      <button
+                        onClick={() => handleTogglePayrollAccess(c)}
+                        disabled={!active || Boolean(pending) || !currentPayrollRunAccess}
+                        title={
+                          !currentPayrollRunAccess
+                            ? "You need payroll run access yourself before you can grant/revoke it for others"
+                            : c.payrollRunAccess
+                            ? "Can create & submit payroll runs — click to revoke"
+                            : "View-only for payroll — click to grant run/submit access"
+                        }
+                        style={{
+                          position: "relative",
+                          width: 44,
+                          height: 24,
+                          borderRadius: 999,
+                          border: "none",
+                          padding: 0,
+                          backgroundColor: c.payrollRunAccess ? "#198754" : "#ccc",
+                          opacity: !active || !currentPayrollRunAccess ? 0.5 : 1,
+                          cursor:
+                            !active || pending || !currentPayrollRunAccess
+                              ? "not-allowed"
+                              : "pointer",
+                          verticalAlign: "middle",
+                        }}
+                        aria-pressed={Boolean(c.payrollRunAccess)}
+                        aria-label={
+                          c.payrollRunAccess
+                            ? `Revoke payroll run access for ${c.email}`
+                            : `Grant payroll run access to ${c.email}`
+                        }
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            left: c.payrollRunAccess ? 22 : 2,
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            backgroundColor: "#fff",
+                            transition: "left 0.15s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                          }}
+                        />
+                      </button>
+                    ) : (
+                      <span style={{ color: "#999" }}>—</span>
+                    )}
                   </td>
                   <td>
                     {active ? (
@@ -538,6 +630,8 @@ export default function UserManagementTable() {
 
       <div style={{ marginTop: "10px", color: "#666", fontSize: 12 }}>
         Delete removes the Clerk account and marks the user inactive locally (time logs stay intact).
+        <br />
+        Payroll Access: all admins can view payroll runs; only admins with this toggle on can create or submit a run to Gusto. You need it yourself to change it for others.
       </div>
     </div>
   );

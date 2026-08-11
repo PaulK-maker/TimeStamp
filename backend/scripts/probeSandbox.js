@@ -1,8 +1,8 @@
 require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs'), path = require('path');
-const CLIENT_ID = 'j0BomohNFzn0Ytr7gO83w7t3eQMaXA6D9yuaa5KfG7I';
-const CLIENT_SECRET = 'i4x2gp15nqWNnc-rsrj4Qfdv4kVUsuM8v1iyT_ou94U';
+const CLIENT_ID = process.env.GUSTO_CLIENT_ID;
+const CLIENT_SECRET = process.env.GUSTO_CLIENT_SECRET;
 const COMPANY = process.env.GUSTO_PARTNER_COMPANY_UUID;
 const BANK_UUID = '3c305b5c-5800-4eec-bcc7-06b144ac0a05';
 
