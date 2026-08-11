@@ -2,10 +2,7 @@ const express = require("express");
 
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
-const {
-  requirePlanSelected,
-  requireFeature,
-} = require("../middleware/tenantPlanMiddleware");
+const { requirePlanSelected } = require("../middleware/tenantPlanMiddleware");
 const {
   listJobs,
   listMyJobs,
@@ -19,12 +16,7 @@ router.use(auth, requirePlanSelected());
 
 router.get("/mine", listMyJobs);
 router.get("/", listJobs);
-router.post("/", authorizeRoles("admin"), requireFeature("dataManagement"), createJob);
-router.put(
-  "/:jobId",
-  authorizeRoles("admin"),
-  requireFeature("dataManagement"),
-  updateJob
-);
+router.post("/", authorizeRoles("admin"), createJob);
+router.put("/:jobId", authorizeRoles("admin"), updateJob);
 
 module.exports = router;
