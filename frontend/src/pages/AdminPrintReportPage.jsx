@@ -113,6 +113,10 @@ export default function AdminPrintReportPage() {
   const [presetName, setPresetName] = useState("");
   const [savedPresets, setSavedPresets] = useState([]);
 
+  const [reportEmail, setReportEmail] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailStatus, setEmailStatus] = useState("");
+
   const loadPresets = useCallback(() => {
     const existing = safeJsonParse(localStorage.getItem(STORAGE_KEY) || "[]", []);
     setSavedPresets(Array.isArray(existing) ? existing : []);
@@ -420,6 +424,45 @@ export default function AdminPrintReportPage() {
     loadPresets();
   };
 
+  const periodLabel = `${startDate} to ${endDate}`;
+
+  const handleEmailReport = async () => {
+    setEmailStatus("");
+    setError("");
+
+    const trimmedEmail = reportEmail.trim();
+    if (!trimmedEmail) {
+      setEmailStatus("Enter an email address to send the report to.");
+      return;
+    }
+
+    const rows = perCaregiver.map((group) => ({
+      name: `${group.caregiver?.firstName || ""} ${group.caregiver?.lastName || ""}`.trim(),
+      email: group.caregiver?.email || "",
+      totalHours: group.totals.totalHours,
+      overtimeHours: group.totals.computedOvertime,
+    }));
+
+    if (rows.length === 0) {
+      setEmailStatus("No staff hours in the current report to send.");
+      return;
+    }
+
+    setEmailSending(true);
+    try {
+      await api.post("/admin/reports/hours-summary", {
+        recipientEmail: trimmedEmail,
+        periodLabel,
+        rows,
+      });
+      setEmailStatus(`Report sent to ${trimmedEmail}.`);
+    } catch (err) {
+      setEmailStatus(err.response?.data?.message || "Failed to send report.");
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="noPrint" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -436,6 +479,37 @@ export default function AdminPrintReportPage() {
           )}
         </div>
       </div>
+
+      {!printingLocked && (
+        <div className="card noPrint" style={{ marginTop: 16 }}>
+          <h2 style={{ marginTop: 0 }}>✉️ Email This Report</h2>
+          <p style={{ marginTop: 0, color: "var(--muted)", fontSize: 13 }}>
+            Send a CSV hours summary (staff, total hours, overtime) for the selected period to any
+            email — useful for handing off to an outside payroll provider, or processing pay
+            yourself before this app's built-in payroll is set up.
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              type="email"
+              placeholder="provider@example.com"
+              value={reportEmail}
+              onChange={(e) => setReportEmail(e.target.value)}
+              disabled={emailSending}
+              style={{ flex: "1 1 260px", padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+            />
+            <button
+              className="btn btnPrimary"
+              onClick={handleEmailReport}
+              disabled={emailSending || loading}
+            >
+              {emailSending ? "Sending…" : "Send Report"}
+            </button>
+          </div>
+          {emailStatus ? (
+            <div style={{ marginTop: 10, fontSize: 13, color: "#146c43" }}>{emailStatus}</div>
+          ) : null}
+        </div>
+      )}
 
       {error && (
         <div className="card noPrint" style={{ borderColor: "#fca5a5", color: "#991b1b" }}>

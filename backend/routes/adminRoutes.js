@@ -12,6 +12,7 @@ const {
   deleteUser,
   updateShiftLength,
   updateGeofenceSettings,
+  emailHoursSummaryReport,
   grantPayrollRunAccess,
   revokePayrollRunAccess,
 } = require("../controllers/adminControllers");
@@ -52,6 +53,17 @@ router.get(
   authorizeRoles("admin"),
   requireFeature("printing"),
   getAllTimeLogs
+);
+
+// Email a CSV hours-summary report to any address (e.g. an external payroll
+// provider). Same plan gate as export/print, since it's the same category
+// of feature just delivered by email instead of a browser download.
+router.post(
+  "/reports/hours-summary",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("printing"),
+  emailHoursSummaryReport
 );
 
 // Promote an existing staff member to admin by email

@@ -55,7 +55,7 @@ function createTransport() {
   return nodemailer.createTransport(transportOptions);
 }
 
-async function sendMail({ to, subject, text, html }) {
+async function sendMail({ to, subject, text, html, attachments }) {
   const cfg = getMailConfig();
   if (!cfg.from) {
     const err = new Error("MAIL_FROM is not configured");
@@ -71,6 +71,7 @@ async function sendMail({ to, subject, text, html }) {
     subject,
     text,
     html,
+    attachments,
   });
 }
 

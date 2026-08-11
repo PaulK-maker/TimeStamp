@@ -2,6 +2,7 @@ const TimeEntry = require("../models/TimeEntry");
 const Staff = require("../models/staff");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
 const Tenant = require("../models/Tenant");
+const { isMailerConfigured, sendMail } = require("../utils/mailer");
 
 function normalizeEmail(email) {
   return (email || "").trim().toLowerCase();
@@ -518,6 +519,99 @@ exports.updateGeofenceSettings = async (req, res) => {
       facilityLongitude: tenant.facilityLongitude,
       geofenceRadiusMeters: tenant.geofenceRadiusMeters,
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+function escapeCsvField(value) {
+  const str = value === undefined || value === null ? "" : String(value);
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function buildHoursSummaryCsv(rows) {
+  const header = ["Staff Name", "Email", "Total Hours", "Overtime Hours"];
+  const lines = [header.map(escapeCsvField).join(",")];
+
+  rows.forEach((row) => {
+    lines.push(
+      [
+        row.name || "",
+        row.email || "",
+        typeof row.totalHours === "number" ? row.totalHours.toFixed(2) : "",
+        typeof row.overtimeHours === "number" ? row.overtimeHours.toFixed(2) : "0.00",
+      ]
+        .map(escapeCsvField)
+        .join(",")
+    );
+  });
+
+  return lines.join("\r\n");
+}
+
+/**
+ * POST /api/admin/reports/hours-summary
+ * Admin-only: email a CSV hours-per-staff summary to any address, so a
+ * facility can hand off to an external payroll provider (or process pay
+ * themselves) before/without using this app's built-in payroll integration.
+ */
+exports.emailHoursSummaryReport = async (req, res) => {
+  try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    if (!isMailerConfigured()) {
+      return res.status(503).json({
+        message: "Email is not configured for this server yet. Contact support to enable it.",
+        code: "MAIL_NOT_CONFIGURED",
+      });
+    }
+
+    const recipientEmail = normalizeEmail(req.body?.recipientEmail);
+    if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      return res.status(400).json({ message: "A valid recipientEmail is required." });
+    }
+
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (rows.length === 0) {
+      return res.status(400).json({ message: "At least one report row is required." });
+    }
+    if (rows.length > 500) {
+      return res.status(400).json({ message: "Too many rows in one report (max 500)." });
+    }
+
+    const periodLabel = String(req.body?.periodLabel || "").trim() || "selected period";
+    const tenant = await Tenant.findById(adminTenantId).select("name").lean();
+    const facilityName = tenant?.name || "your facility";
+
+    const csv = buildHoursSummaryCsv(rows);
+    const filename = `hours-report-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    await sendMail({
+      to: recipientEmail,
+      subject: `Hours summary report — ${facilityName} (${periodLabel})`,
+      text:
+        `Attached is an hours summary report for ${facilityName}, covering ${periodLabel}.\n\n` +
+        `This report was generated from TimeStamp and is provided as-is for payroll processing outside the app.`,
+      attachments: [
+        {
+          filename,
+          content: csv,
+          contentType: "text/csv",
+        },
+      ],
+    });
+
+    return res.json({ message: "Report sent", recipientEmail });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
