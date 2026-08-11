@@ -643,6 +643,45 @@ const AdminDashboard = () => {
   const formatHours = (hours) =>
     typeof hours === "number" ? hours.toFixed(2) : "-";
 
+  const renderLocationBadge = (location, label) => {
+    if (!location || typeof location.withinFence !== "boolean") return null;
+
+    const isWithin = location.withinFence;
+    const distance = typeof location.distanceMeters === "number" ? `${location.distanceMeters}m` : "";
+
+    return (
+      <span
+        key={label}
+        title={`${label}: ${isWithin ? "on-site" : "off-site"}${distance ? ` (${distance} from facility)` : ""}`}
+        style={{
+          display: "inline-block",
+          padding: "2px 6px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 700,
+          marginRight: 4,
+          color: isWithin ? "#146c43" : "#b00020",
+          background: isWithin ? "#e6f4ea" : "#ffe1e1",
+        }}
+      >
+        {label} {isWithin ? "✓" : "⚠"} {distance}
+      </span>
+    );
+  };
+
+  const renderLocationCell = (punchInLocation, punchOutLocation) => {
+    const badges = [
+      renderLocationBadge(punchInLocation, "In"),
+      renderLocationBadge(punchOutLocation, "Out"),
+    ].filter(Boolean);
+
+    if (badges.length === 0) {
+      return <span style={{ color: "#999" }}>—</span>;
+    }
+
+    return <>{badges}</>;
+  };
+
   const LOGS_PAGE_SIZE = 15;
 
   const filteredLogs = useMemo(() => {
@@ -967,6 +1006,7 @@ const AdminDashboard = () => {
                   <th align="left">Job</th>
                   <th align="left">Punch In</th>
                   <th align="left">Punch Out</th>
+                  <th align="left">Location</th>
                   <th align="right">Hours</th>
                 </tr>
               </thead>
@@ -989,6 +1029,7 @@ const AdminDashboard = () => {
                       <td>{log.jobSnapshot?.name || log.job?.name || "-"}</td>
                       <td>{formatDateTime(log.punchIn)}</td>
                       <td>{formatDateTime(log.punchOut)}</td>
+                      <td>{renderLocationCell(log.punchInLocation, log.punchOutLocation)}</td>
                       <td align="right">
                         {formatHours(hours)}
                       </td>
