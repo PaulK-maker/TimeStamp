@@ -2,7 +2,79 @@ const TimeEntry = require("../models/TimeEntry");
 const mongoose = require("mongoose");
 const Staff = require("../models/staff");
 const Job = require("../models/Job");
+const Tenant = require("../models/Tenant");
 const TimeEntryCorrection = require("../models/TimeEntryCorrection");
+
+const EARTH_RADIUS_METERS = 6371000;
+
+function toRadians(degrees) {
+  return (degrees * Math.PI) / 180;
+}
+
+// Haversine formula - great-circle distance between two lat/lng points, in meters.
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_METERS * c;
+}
+
+// Enforces the facility geofence (if enabled) against a punch attempt's
+// reported coordinates. Returns { location } on success, or throws a
+// GeofenceError describing the rejection when the tenant has geofencing on.
+class GeofenceError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function enforceGeofence(tenantId, body) {
+  const tenant = await Tenant.findById(tenantId).select(
+    "geofenceEnabled facilityLatitude facilityLongitude geofenceRadiusMeters"
+  );
+
+  if (!tenant?.geofenceEnabled) return null;
+
+  const latitude = Number(body?.latitude);
+  const longitude = Number(body?.longitude);
+
+  if (
+    body?.latitude === undefined ||
+    body?.longitude === undefined ||
+    Number.isNaN(latitude) ||
+    Number.isNaN(longitude)
+  ) {
+    throw new GeofenceError(
+      400,
+      "Location is required to clock in/out at this facility. Please enable location services and try again.",
+      "GEOFENCE_LOCATION_REQUIRED"
+    );
+  }
+
+  const distance = distanceMeters(
+    latitude,
+    longitude,
+    tenant.facilityLatitude,
+    tenant.facilityLongitude
+  );
+  const withinFence = distance <= tenant.geofenceRadiusMeters;
+
+  if (!withinFence) {
+    const distanceMiles = (distance / 1609.34).toFixed(2);
+    throw new GeofenceError(
+      403,
+      `You are currently about ${distanceMiles} miles from the facility. Please clock in once you arrive.`,
+      "GEOFENCE_OUT_OF_RANGE"
+    );
+  }
+
+  return { latitude, longitude, distanceMeters: Math.round(distance), withinFence };
+}
 
 const resolveStaffObjectId = async (req) => {
   const candidate = req.user?.staffId || req.user?.id;
@@ -75,6 +147,18 @@ const punchIn = async (req, res) => {
       });
     }
 
+    let punchInLocation = null;
+    try {
+      punchInLocation = await enforceGeofence(tenantId, req.body);
+    } catch (geofenceError) {
+      if (geofenceError instanceof GeofenceError) {
+        return res
+          .status(geofenceError.status)
+          .json({ message: geofenceError.message, code: geofenceError.code });
+      }
+      throw geofenceError;
+    }
+
     const entry = await TimeEntry.create({
       tenantId,
       staff: staffId,
@@ -86,6 +170,7 @@ const punchIn = async (req, res) => {
       },
       punchIn: new Date(),
       notes,
+      punchInLocation,
     });
 
     await entry.populate("job", "name gustoJobUuid isActive");
@@ -127,7 +212,20 @@ const punchOut = async (req, res) => {
       });
     }
 
+    let punchOutLocation = null;
+    try {
+      punchOutLocation = await enforceGeofence(tenantId, req.body);
+    } catch (geofenceError) {
+      if (geofenceError instanceof GeofenceError) {
+        return res
+          .status(geofenceError.status)
+          .json({ message: geofenceError.message, code: geofenceError.code });
+      }
+      throw geofenceError;
+    }
+
     activeShift.punchOut = new Date();
+    activeShift.punchOutLocation = punchOutLocation;
     await activeShift.save();
 
     res.json(activeShift);

@@ -83,14 +83,28 @@ router.get("/me", requireAuth, async (req, res) => {
     let tenantCode = null;
     let tenantName = null;
     let shiftLengthHours = 8;
+    let geofence = {
+      enabled: false,
+      latitude: null,
+      longitude: null,
+      radiusMeters: 200,
+    };
 
     if (baseUser.tenantId) {
       const tenant = await Tenant.findById(baseUser.tenantId)
-        .select("tenantCode name shiftLengthHours")
+        .select(
+          "tenantCode name shiftLengthHours geofenceEnabled facilityLatitude facilityLongitude geofenceRadiusMeters"
+        )
         .lean();
       tenantCode = tenant?.tenantCode || null;
       tenantName = tenant?.name || null;
       shiftLengthHours = tenant?.shiftLengthHours || 8;
+      geofence = {
+        enabled: Boolean(tenant?.geofenceEnabled),
+        latitude: tenant?.facilityLatitude ?? null,
+        longitude: tenant?.facilityLongitude ?? null,
+        radiusMeters: tenant?.geofenceRadiusMeters || 200,
+      };
     }
 
     const staffMember = await resolveStaffForAuthUser(baseUser);
@@ -101,6 +115,7 @@ router.get("/me", requireAuth, async (req, res) => {
         tenantCode,
         tenantName,
         shiftLengthHours,
+        geofence,
         defaultJob: staffMember?.defaultJob || null,
       },
     });

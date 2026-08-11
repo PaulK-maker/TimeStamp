@@ -21,6 +21,16 @@ const timeEntryJobSnapshotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const timeEntryLocationSchema = new mongoose.Schema(
+  {
+    latitude: { type: Number, default: null },
+    longitude: { type: Number, default: null },
+    distanceMeters: { type: Number, default: null },
+    withinFence: { type: Boolean, default: null },
+  },
+  { _id: false }
+);
+
 const timeEntrySchema = new mongoose.Schema(
   {
     tenantId: {
@@ -55,6 +65,14 @@ const timeEntrySchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true,
+    },
+    punchInLocation: {
+      type: timeEntryLocationSchema,
+      default: null,
+    },
+    punchOutLocation: {
+      type: timeEntryLocationSchema,
+      default: null,
     },
   },
   { timestamps: true }

@@ -80,6 +80,27 @@ const tenantSchema = new mongoose.Schema(
       enum: [8, 12],
       default: 8,
     },
+
+    // Geofenced clock-in/out. Off by default so existing facilities are
+    // unaffected until an admin explicitly sets a location and enables it.
+    geofenceEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    facilityLatitude: {
+      type: Number,
+      default: null,
+    },
+    facilityLongitude: {
+      type: Number,
+      default: null,
+    },
+    geofenceRadiusMeters: {
+      type: Number,
+      default: 200,
+      min: 20,
+      max: 5000,
+    },
   },
   { timestamps: true }
 );

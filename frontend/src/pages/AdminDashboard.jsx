@@ -272,6 +272,14 @@ const AdminDashboard = () => {
   const [shiftLengthHours, setShiftLengthHours] = useState(8);
   const [shiftLengthSaving, setShiftLengthSaving] = useState(false);
 
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
+  const [geofenceLatitude, setGeofenceLatitude] = useState(null);
+  const [geofenceLongitude, setGeofenceLongitude] = useState(null);
+  const [geofenceRadiusMeters, setGeofenceRadiusMeters] = useState(200);
+  const [geofenceLocating, setGeofenceLocating] = useState(false);
+  const [geofenceSaving, setGeofenceSaving] = useState(false);
+  const [geofenceStatus, setGeofenceStatus] = useState("");
+
   const [missedPunchRequests, setMissedPunchRequests] = useState([]);
   const [mpLoading, setMpLoading] = useState(false);
   const [mpError, setMpError] = useState("");
@@ -343,6 +351,82 @@ const AdminDashboard = () => {
       setShiftLengthSaving(false);
     }
   }, [shiftLengthHours, shiftLengthSaving]);
+
+  /* =======================
+     Geofenced clock-in/out setting
+  ======================= */
+  const handleUseCurrentLocation = useCallback(() => {
+    setGeofenceStatus("");
+    setErrorMsg("");
+
+    if (!navigator.geolocation) {
+      setErrorMsg("Location services are not available in this browser.");
+      return;
+    }
+
+    setGeofenceLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeofenceLatitude(position.coords.latitude);
+        setGeofenceLongitude(position.coords.longitude);
+        setGeofenceStatus("Location captured. Click Save to apply it.");
+        setGeofenceLocating(false);
+      },
+      (geoError) => {
+        setErrorMsg(
+          geoError.code === geoError.PERMISSION_DENIED
+            ? "Location permission was denied. Enable location access for this site and try again."
+            : "Could not determine your current location. Please try again."
+        );
+        setGeofenceLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }, []);
+
+  const handleSaveGeofenceLocation = useCallback(async () => {
+    if (geofenceLatitude == null || geofenceLongitude == null) {
+      setErrorMsg("Use the button to capture the facility's location before saving.");
+      return;
+    }
+
+    setGeofenceSaving(true);
+    setErrorMsg("");
+    setGeofenceStatus("");
+    try {
+      await api.patch("/admin/geofence", {
+        facilityLatitude: geofenceLatitude,
+        facilityLongitude: geofenceLongitude,
+        geofenceRadiusMeters,
+      });
+      setGeofenceStatus("Facility location and radius saved.");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || "Failed to save facility location.");
+    } finally {
+      setGeofenceSaving(false);
+    }
+  }, [geofenceLatitude, geofenceLongitude, geofenceRadiusMeters]);
+
+  const handleToggleGeofenceEnabled = useCallback(async () => {
+    const nextValue = !geofenceEnabled;
+    setGeofenceSaving(true);
+    setErrorMsg("");
+    setGeofenceStatus("");
+    try {
+      await api.patch("/admin/geofence", { geofenceEnabled: nextValue });
+      setGeofenceEnabled(nextValue);
+      setGeofenceStatus(nextValue ? "Geofencing enabled." : "Geofencing disabled.");
+    } catch (err) {
+      const code = err.response?.data?.code;
+      if (code === "GEOFENCE_LOCATION_REQUIRED") {
+        setErrorMsg("Set and save a facility location before enabling geofencing.");
+      } else {
+        setErrorMsg(err.response?.data?.message || "Failed to update geofencing.");
+      }
+    } finally {
+      setGeofenceSaving(false);
+    }
+  }, [geofenceEnabled]);
 
   /* =======================
      Calculate totals
@@ -494,6 +578,14 @@ const AdminDashboard = () => {
         setTenantCode(me?.tenantCode || null);
         setTenantName(me?.tenantName || null);
         setShiftLengthHours(me?.shiftLengthHours === 12 ? 12 : 8);
+        setGeofenceEnabled(Boolean(me?.geofence?.enabled));
+        setGeofenceLatitude(
+          typeof me?.geofence?.latitude === "number" ? me.geofence.latitude : null
+        );
+        setGeofenceLongitude(
+          typeof me?.geofence?.longitude === "number" ? me.geofence.longitude : null
+        );
+        setGeofenceRadiusMeters(me?.geofence?.radiusMeters || 200);
         setSignedInEmail(
           me?.email ||
             me?.emailAddress ||
@@ -1115,6 +1207,106 @@ const AdminDashboard = () => {
             </table>
           </div>
         ) : null}
+
+        {/* Geofenced clock-in/out */}
+        <div
+          style={{
+            background: "#fff",
+            padding: "20px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>📍 Geofenced Clock-In</h2>
+          <div style={{ color: "#555", fontSize: 13, marginBottom: 14 }}>
+            Require staff to be physically at the facility to punch in or out. Stand at the
+            facility and capture its location, set a radius, then enable enforcement.
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={geofenceLocating || geofenceSaving}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 6,
+                border: "1px solid #111",
+                background: "#fff",
+                color: "#111",
+                cursor: geofenceLocating || geofenceSaving ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {geofenceLocating ? "Getting location…" : "📍 Use my current location"}
+            </button>
+
+            <span style={{ color: "#555", fontSize: 13 }}>
+              {geofenceLatitude != null && geofenceLongitude != null
+                ? `Captured: ${geofenceLatitude.toFixed(5)}, ${geofenceLongitude.toFixed(5)}`
+                : "No facility location set yet"}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <label style={{ fontSize: 13, color: "#444" }}>
+              Radius:
+              <select
+                value={geofenceRadiusMeters}
+                onChange={(e) => setGeofenceRadiusMeters(Number(e.target.value))}
+                disabled={geofenceSaving}
+                style={{ marginLeft: 8, padding: "6px 10px", borderRadius: 6, border: "1px solid #ddd" }}
+              >
+                <option value={100}>100 meters</option>
+                <option value={200}>200 meters</option>
+                <option value={500}>500 meters</option>
+                <option value={1000}>1000 meters</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleSaveGeofenceLocation}
+              disabled={geofenceSaving || geofenceLatitude == null || geofenceLongitude == null}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: "#111",
+                color: "#fff",
+                cursor: geofenceSaving ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {geofenceSaving ? "Saving…" : "Save Location & Radius"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13, color: "#444" }}>Enforcement:</span>
+            <button
+              type="button"
+              onClick={handleToggleGeofenceEnabled}
+              disabled={geofenceSaving}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                border: "none",
+                background: geofenceEnabled ? "#146c43" : "#999",
+                color: "#fff",
+                cursor: geofenceSaving ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                fontSize: 12,
+              }}
+            >
+              {geofenceEnabled ? "ON — required to clock in/out" : "OFF"}
+            </button>
+          </div>
+
+          {geofenceStatus ? (
+            <div style={{ marginTop: 10, color: "#146c43", fontSize: 13 }}>{geofenceStatus}</div>
+          ) : null}
+        </div>
 
         {/* Totals */}
         <div

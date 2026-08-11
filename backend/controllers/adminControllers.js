@@ -41,6 +41,22 @@ async function ensureNotLastAdmin(staffMember, tenantId) {
   }
 }
 
+async function ensureNotLastPayrollRunAccessHolder(staffMember, tenantId) {
+  if (!staffMember || !staffMember.payrollRunAccess) return;
+  const holderCount = await Staff.countDocuments({
+    tenantId,
+    isActive: true,
+    payrollRunAccess: true,
+  });
+  if (holderCount <= 1) {
+    const err = new Error(
+      "Cannot revoke payroll run access from the last admin who has it"
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
 /**
  * GET /api/admin/timelogs
  * Admin-only: Get all time entries
@@ -276,6 +292,126 @@ exports.demoteAdminToStaff = async (req, res) => {
 };
 
 /**
+ * POST /api/admin/payroll-access/grant
+ * Payroll-run-access-only: Grant another admin the ability to create/submit
+ * payroll runs (not just view them). Requires the caller to already have
+ * payrollRunAccess themselves (enforced by requirePayrollRunAccess middleware).
+ * Body: { staffId?: string, email?: string }
+ */
+exports.grantPayrollRunAccess = async (req, res) => {
+  try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const staffId = (req.body?.staffId || "").trim();
+    const email = normalizeEmail(req.body?.email);
+
+    if (!staffId && !email) {
+      return res.status(400).json({ message: "staffId or email is required" });
+    }
+
+    const staffMember = await resolveStaff({
+      tenantId: adminTenantId,
+      staffId,
+      email,
+    });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    if (staffMember.role !== "admin") {
+      return res.status(400).json({
+        message: "Only admins can be granted payroll run access",
+      });
+    }
+
+    if (!staffMember.isActive) {
+      return res.status(400).json({
+        message: "Cannot grant payroll run access to an inactive user",
+      });
+    }
+
+    if (!staffMember.payrollRunAccess) {
+      staffMember.payrollRunAccess = true;
+      await staffMember.save();
+    }
+
+    return res.json({
+      message: "Payroll run access granted",
+      staff: {
+        id: staffMember._id.toString(),
+        email: staffMember.email,
+        role: staffMember.role,
+        payrollRunAccess: staffMember.payrollRunAccess,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * POST /api/admin/payroll-access/revoke
+ * Payroll-run-access-only: Revoke another admin's ability to create/submit
+ * payroll runs. They keep view access via the base "admin" role.
+ * Body: { staffId?: string, email?: string }
+ */
+exports.revokePayrollRunAccess = async (req, res) => {
+  try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const staffId = (req.body?.staffId || "").trim();
+    const email = normalizeEmail(req.body?.email);
+
+    if (!staffId && !email) {
+      return res.status(400).json({ message: "staffId or email is required" });
+    }
+
+    const staffMember = await resolveStaff({
+      tenantId: adminTenantId,
+      staffId,
+      email,
+    });
+    if (!staffMember) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    await ensureNotLastPayrollRunAccessHolder(staffMember, adminTenantId);
+
+    if (staffMember.payrollRunAccess) {
+      staffMember.payrollRunAccess = false;
+      await staffMember.save();
+    }
+
+    return res.json({
+      message: "Payroll run access revoked",
+      staff: {
+        id: staffMember._id.toString(),
+        email: staffMember.email,
+        role: staffMember.role,
+        payrollRunAccess: staffMember.payrollRunAccess,
+      },
+    });
+  } catch (error) {
+    const status = error?.statusCode || 500;
+    console.error(error);
+    res.status(status).json({ message: error?.message || "Server error" });
+  }
+};
+
+/**
  * PATCH /api/admin/shift-length
  * Admin-only: Set the facility's standard shift length (8 or 12 hours).
  * Used to derive a "shifts worked" summary from total hours worked.
@@ -308,6 +444,79 @@ exports.updateShiftLength = async (req, res) => {
     return res.json({
       message: "Shift length updated",
       shiftLengthHours: tenant.shiftLengthHours,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * PATCH /api/admin/geofence
+ * Admin-only: configure the facility's approved location and geofence radius,
+ * and toggle enforcement on/off for punch in/out.
+ */
+exports.updateGeofenceSettings = async (req, res) => {
+  try {
+    const adminTenantId = req.user?.tenantId;
+    if (!adminTenantId) {
+      return res.status(403).json({
+        message: "Tenant is not assigned for this account.",
+        code: "TENANT_REQUIRED",
+      });
+    }
+
+    const tenant = await Tenant.findById(adminTenantId);
+    if (!tenant) {
+      return res.status(404).json({ message: "Tenant not found" });
+    }
+
+    const { geofenceEnabled, facilityLatitude, facilityLongitude, geofenceRadiusMeters } =
+      req.body || {};
+
+    if (facilityLatitude !== undefined) {
+      const lat = Number(facilityLatitude);
+      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
+        return res.status(400).json({ message: "facilityLatitude must be between -90 and 90" });
+      }
+      tenant.facilityLatitude = lat;
+    }
+
+    if (facilityLongitude !== undefined) {
+      const lng = Number(facilityLongitude);
+      if (Number.isNaN(lng) || lng < -180 || lng > 180) {
+        return res.status(400).json({ message: "facilityLongitude must be between -180 and 180" });
+      }
+      tenant.facilityLongitude = lng;
+    }
+
+    if (geofenceRadiusMeters !== undefined) {
+      const radius = Number(geofenceRadiusMeters);
+      if (Number.isNaN(radius) || radius < 20 || radius > 5000) {
+        return res.status(400).json({ message: "geofenceRadiusMeters must be between 20 and 5000" });
+      }
+      tenant.geofenceRadiusMeters = radius;
+    }
+
+    if (geofenceEnabled !== undefined) {
+      const enabled = Boolean(geofenceEnabled);
+      if (enabled && (tenant.facilityLatitude == null || tenant.facilityLongitude == null)) {
+        return res.status(400).json({
+          message: "Set a facility location before enabling geofencing.",
+          code: "GEOFENCE_LOCATION_REQUIRED",
+        });
+      }
+      tenant.geofenceEnabled = enabled;
+    }
+
+    await tenant.save();
+
+    return res.json({
+      message: "Geofence settings updated",
+      geofenceEnabled: tenant.geofenceEnabled,
+      facilityLatitude: tenant.facilityLatitude,
+      facilityLongitude: tenant.facilityLongitude,
+      geofenceRadiusMeters: tenant.geofenceRadiusMeters,
     });
   } catch (error) {
     console.error(error);

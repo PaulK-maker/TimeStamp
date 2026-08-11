@@ -10,6 +10,7 @@ const CaregiverDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [tenantId, setTenantId] = useState(null);
   const [tenantCheckLoading, setTenantCheckLoading] = useState(true);
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -51,12 +52,14 @@ const CaregiverDashboard = () => {
         if (cancelled) return;
         setIsAdmin(me?.role === "admin");
         setTenantId(me?.tenantId || null);
+        setGeofenceEnabled(Boolean(me?.geofence?.enabled));
       } catch {
         // If /auth/me briefly fails during sign-in, we don't want to break the page.
         // Admin button will simply not render.
         if (cancelled) return;
         setIsAdmin(false);
         setTenantId(null);
+        setGeofenceEnabled(false);
       } finally {
         if (cancelled) return;
         setTenantCheckLoading(false);
@@ -173,6 +176,27 @@ const CaregiverDashboard = () => {
     }
   }, [calculateTotals, fetchMyRequests, logout]);
 
+  // Only requests location when the facility actually has geofencing on -
+  // resolves to null (rather than rejecting) on any failure, so the punch
+  // request still goes through and lets the backend return its own clear
+  // error message if location turns out to be required.
+  const getCurrentCoordsIfNeeded = () => {
+    if (!geofenceEnabled) return Promise.resolve(null);
+    if (!navigator.geolocation) return Promise.resolve(null);
+
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) =>
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    });
+  };
+
   const handlePunchIn = async () => {
     try {
       setError("");
@@ -183,7 +207,8 @@ const CaregiverDashboard = () => {
       }
 
       setLoading(true);
-      await api.post("/timeclock/punch-in", { jobId: selectedJobId });
+      const coords = await getCurrentCoordsIfNeeded();
+      await api.post("/timeclock/punch-in", { jobId: selectedJobId, ...coords });
       await fetchMyLogs();
     } catch (err) {
       console.error("PUNCH IN ERROR:", err);
@@ -201,7 +226,8 @@ const CaregiverDashboard = () => {
     try {
       setError("");
       setLoading(true);
-      await api.post("/timeclock/punch-out", {});
+      const coords = await getCurrentCoordsIfNeeded();
+      await api.post("/timeclock/punch-out", { ...coords });
       await fetchMyLogs();
     } catch (err) {
       console.error("PUNCH OUT ERROR:", err);

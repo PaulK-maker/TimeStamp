@@ -4,12 +4,16 @@ const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const authorizeRoles = require("../middleware/roleMiddleware");
 const { requireFeature } = require("../middleware/tenantPlanMiddleware");
+const requirePayrollRunAccess = require("../middleware/payrollAccessMiddleware");
 const {
   getAllTimeLogs,
   promoteStaffToAdmin,
   demoteAdminToStaff,
   deleteUser,
   updateShiftLength,
+  updateGeofenceSettings,
+  grantPayrollRunAccess,
+  revokePayrollRunAccess,
 } = require("../controllers/adminControllers");
 const {
   createPayrollRun,
@@ -86,6 +90,11 @@ router.patch(
   updateShiftLength
 );
 
+// Facility geofence settings (location + radius + enable/disable).
+// Available on every plan - proof-of-presence is core to the product, not
+// gated behind a paid data-management feature.
+router.patch("/geofence", auth, authorizeRoles("admin"), updateGeofenceSettings);
+
 // Missed punch request review
 router.get(
   "/missed-punch-requests",
@@ -124,6 +133,7 @@ router.post(
   auth,
   authorizeRoles("admin"),
   requireFeature("payroll"),
+  requirePayrollRunAccess,
   createPayrollRun
 );
 
@@ -132,6 +142,7 @@ router.post(
   auth,
   authorizeRoles("admin"),
   requireFeature("payroll"),
+  requirePayrollRunAccess,
   submitPayrollRun
 );
 
@@ -141,6 +152,24 @@ router.get(
   authorizeRoles("admin"),
   requireFeature("payroll"),
   listPayrollWebhookEvents
+);
+
+router.post(
+  "/payroll-access/grant",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("payroll"),
+  requirePayrollRunAccess,
+  grantPayrollRunAccess
+);
+
+router.post(
+  "/payroll-access/revoke",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("payroll"),
+  requirePayrollRunAccess,
+  revokePayrollRunAccess
 );
 
 module.exports = router;
