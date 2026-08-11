@@ -790,6 +790,28 @@ const AdminDashboard = () => {
       .sort((a, b) => b.hours - a.hours);
   }, [logs]);
 
+  /* =======================
+     Missed punch-out alerts
+     Flags shifts still open well past a normal shift length - likely
+     someone forgot to punch out, rather than a genuinely long shift.
+  ======================= */
+  const MISSED_PUNCH_OUT_BUFFER_HOURS = 4;
+
+  const missedPunchOutAlerts = useMemo(() => {
+    const now = new Date();
+    const thresholdMs = (shiftLengthHours + MISSED_PUNCH_OUT_BUFFER_HOURS) * 60 * 60 * 1000;
+
+    return logs
+      .filter((log) => !log.punchOut && log.punchIn && log.staff?._id)
+      .map((log) => {
+        const punchInDate = new Date(log.punchIn);
+        const hoursOpen = (now - punchInDate) / (1000 * 60 * 60);
+        return { log, hoursOpen };
+      })
+      .filter((entry) => now - new Date(entry.log.punchIn) > thresholdMs)
+      .sort((a, b) => b.hoursOpen - a.hoursOpen);
+  }, [logs, shiftLengthHours]);
+
   useEffect(() => {
     setLogPage(1);
   }, [logSearchText, logDateStart, logDateEnd, logSort]);
@@ -1194,6 +1216,47 @@ const AdminDashboard = () => {
             </table>
           )}
         </div>
+
+        {/* Missed Punch-Out Alerts */}
+        {missedPunchOutAlerts.length > 0 ? (
+          <div
+            style={{
+              background: "#fff3f3",
+              border: "1px solid #ffd7d7",
+              padding: "20px",
+              borderRadius: "8px",
+              marginBottom: "20px",
+            }}
+          >
+            <h2 style={{ margin: "0 0 6px 0", color: "#b00020" }}>⏰ Missed Punch-Out?</h2>
+            <div style={{ color: "#555", fontSize: 13, marginBottom: 10 }}>
+              These shifts are still open well past a normal {shiftLengthHours}-hour shift —
+              likely someone forgot to punch out.
+            </div>
+            <table width="100%" cellPadding="8" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th align="left">Staff</th>
+                  <th align="left">Job</th>
+                  <th align="left">Punched In</th>
+                  <th align="right">Hours Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missedPunchOutAlerts.map(({ log, hoursOpen }) => (
+                  <tr key={log._id} style={{ borderTop: "1px solid #ffd7d7" }}>
+                    <td>{log.staff?.firstName} {log.staff?.lastName}</td>
+                    <td>{log.jobSnapshot?.name || log.job?.name || "-"}</td>
+                    <td>{formatDateTime(log.punchIn)}</td>
+                    <td align="right">
+                      <strong style={{ color: "#b00020" }}>{hoursOpen.toFixed(1)} hrs</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
         {/* Overtime Alerts */}
         {overtimeAlerts.length > 0 ? (
