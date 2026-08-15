@@ -533,17 +533,50 @@ function escapeCsvField(value) {
   return str;
 }
 
-function buildHoursSummaryCsv(rows) {
-  const header = ["Staff Name", "Email", "Total Hours", "Overtime Hours"];
-  const lines = [header.map(escapeCsvField).join(",")];
+function csvHours(value) {
+  return typeof value === "number" && !Number.isNaN(value) ? value.toFixed(2) : "0.00";
+}
+
+function csvAmount(value) {
+  return typeof value === "number" && !Number.isNaN(value) ? value.toFixed(2) : "0.00";
+}
+
+function buildHoursSummaryCsv(rows, { facilityName, periodStart, periodEnd } = {}) {
+  const lines = [];
+
+  if (facilityName) {
+    lines.push(escapeCsvField(`Facility: ${facilityName}`));
+  }
+  lines.push(escapeCsvField(`Period Start: ${periodStart || "-"}`));
+  lines.push(escapeCsvField(`Period End: ${periodEnd || "-"}`));
+  lines.push(
+    escapeCsvField(
+      "DISCLAIMER: These hours are unverified and preview-only. Confirm all totals with the facility admin before running payroll or issuing payment based on this report."
+    )
+  );
+  lines.push("");
+
+  const header = [
+    "Staff Name",
+    "Email",
+    "Total Hours",
+    "Overtime Hours",
+    "PTO Hours",
+    "Bonus Amount",
+    "Manual Overtime Hours",
+  ];
+  lines.push(header.map(escapeCsvField).join(","));
 
   rows.forEach((row) => {
     lines.push(
       [
         row.name || "",
         row.email || "",
-        typeof row.totalHours === "number" ? row.totalHours.toFixed(2) : "",
-        typeof row.overtimeHours === "number" ? row.overtimeHours.toFixed(2) : "0.00",
+        csvHours(row.totalHours),
+        csvHours(row.overtimeHours),
+        csvHours(row.ptoHours),
+        csvAmount(row.bonusAmount),
+        csvHours(row.manualOvertimeHours),
       ]
         .map(escapeCsvField)
         .join(",")
@@ -589,19 +622,27 @@ exports.emailHoursSummaryReport = async (req, res) => {
       return res.status(400).json({ message: "Too many rows in one report (max 500)." });
     }
 
-    const periodLabel = String(req.body?.periodLabel || "").trim() || "selected period";
+    const periodStart = String(req.body?.periodStart || "").trim();
+    const periodEnd = String(req.body?.periodEnd || "").trim();
+    if (!periodStart || !periodEnd) {
+      return res.status(400).json({ message: "periodStart and periodEnd are required." });
+    }
+    const periodLabel = `${periodStart} to ${periodEnd}`;
+
     const tenant = await Tenant.findById(adminTenantId).select("name").lean();
     const facilityName = tenant?.name || "your facility";
 
-    const csv = buildHoursSummaryCsv(rows);
-    const filename = `hours-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    const csv = buildHoursSummaryCsv(rows, { facilityName, periodStart, periodEnd });
+    const filename = `hours-report-${periodStart}-to-${periodEnd}.csv`;
 
     await sendMail({
       to: recipientEmail,
       subject: `Hours summary report — ${facilityName} (${periodLabel})`,
       text:
         `Attached is an hours summary report for ${facilityName}, covering ${periodLabel}.\n\n` +
-        `This report was generated from TimeStamp and is provided as-is for payroll processing outside the app.`,
+        `This report was generated from TimeStamp and is provided as-is for payroll processing outside the app.\n\n` +
+        `DISCLAIMER: These hours are unverified and preview-only. Please confirm all totals with the ` +
+        `facility admin (${facilityName}) before running payroll or issuing payment based on this report.`,
       attachments: [
         {
           filename,

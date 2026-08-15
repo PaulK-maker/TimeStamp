@@ -424,8 +424,6 @@ export default function AdminPrintReportPage() {
     loadPresets();
   };
 
-  const periodLabel = `${startDate} to ${endDate}`;
-
   const handleEmailReport = async () => {
     setEmailStatus("");
     setError("");
@@ -436,12 +434,23 @@ export default function AdminPrintReportPage() {
       return;
     }
 
-    const rows = perCaregiver.map((group) => ({
-      name: `${group.caregiver?.firstName || ""} ${group.caregiver?.lastName || ""}`.trim(),
-      email: group.caregiver?.email || "",
-      totalHours: group.totals.totalHours,
-      overtimeHours: group.totals.computedOvertime,
-    }));
+    if (!startDate || !endDate) {
+      setEmailStatus("Set a start and end date before sending the report.");
+      return;
+    }
+
+    const rows = perCaregiver.map((group) => {
+      const adj = getCaregiverAdjustments(group.caregiverId);
+      return {
+        name: `${group.caregiver?.firstName || ""} ${group.caregiver?.lastName || ""}`.trim(),
+        email: group.caregiver?.email || "",
+        totalHours: group.totals.totalHours,
+        overtimeHours: group.totals.computedOvertime,
+        ptoHours: adj.ptoEnabled ? adj.ptoHours : 0,
+        bonusAmount: adj.bonusEnabled ? adj.bonusAmount : 0,
+        manualOvertimeHours: adj.manualOvertimeEnabled ? adj.manualOvertimeHours : 0,
+      };
+    });
 
     if (rows.length === 0) {
       setEmailStatus("No staff hours in the current report to send.");
@@ -452,7 +461,8 @@ export default function AdminPrintReportPage() {
     try {
       await api.post("/admin/reports/hours-summary", {
         recipientEmail: trimmedEmail,
-        periodLabel,
+        periodStart: startDate,
+        periodEnd: endDate,
         rows,
       });
       setEmailStatus(`Report sent to ${trimmedEmail}.`);
