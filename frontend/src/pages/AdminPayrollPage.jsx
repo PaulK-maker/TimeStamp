@@ -34,7 +34,63 @@ function statusColor(status) {
   return "#555";
 }
 
-export default function AdminPayrollPage() {
+const PAYROLL_LIVE = process.env.REACT_APP_PAYROLL_LIVE === "true";
+const GUSTO_REFERRAL_URL = process.env.REACT_APP_GUSTO_REFERRAL_URL || "https://gusto.com/partners";
+
+function PayrollComingSoon() {
+  return (
+    <div style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
+      <Header title="Payroll" />
+      <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 8, padding: 24, marginTop: 16 }}>
+        <h2 style={{ marginTop: 0 }}>🚧 Payroll — Coming Soon</h2>
+        <p style={{ color: "#555" }}>
+          In-app payroll (submit hours directly to a provider and pay staff from TimeStamp) is built
+          and fully tested in sandbox, but isn't connected to a live payroll provider yet. We're
+          working on making this available — check back soon.
+        </p>
+
+        <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #eee" }}>
+          <h3 style={{ marginTop: 0, fontSize: 16 }}>What you can do today</h3>
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 600 }}>Set up payroll with Gusto directly</div>
+            <div style={{ color: "#555", fontSize: 14, marginTop: 4 }}>
+              Not embedded in TimeStamp yet, but you can create a Gusto account and run payroll
+              yourself today.
+            </div>
+            <a
+              href={GUSTO_REFERRAL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-block",
+                marginTop: 10,
+                padding: "10px 16px",
+                borderRadius: 8,
+                background: "#111",
+                color: "#fff",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              Set up payroll with Gusto →
+            </a>
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 600 }}>Email your hours to any payroll provider</div>
+            <div style={{ color: "#555", fontSize: 14, marginTop: 4 }}>
+              Use an already-built report on the Print Report page to send an hours summary (CSV)
+              to whichever payroll provider or bookkeeper you use today.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPayrollPageLive() {
   const [payPeriodStart, setPayPeriodStart] = useState("");
   const [payPeriodEnd, setPayPeriodEnd] = useState("");
   const [runs, setRuns] = useState([]);
@@ -349,4 +405,8 @@ export default function AdminPayrollPage() {
       </div>
     </div>
   );
+}
+
+export default function AdminPayrollPage() {
+  return PAYROLL_LIVE ? <AdminPayrollPageLive /> : <PayrollComingSoon />;
 }

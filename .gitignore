@@ -6,6 +6,9 @@ node_modules/
 .env.*
 backend/.env
 backend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # Build outputs (root-level only — frontend/build is tracked for deployment)
 /build/
