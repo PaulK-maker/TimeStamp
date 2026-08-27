@@ -52,6 +52,7 @@ import AdminPayrollPage from "./pages/AdminPayrollPage";
 import TenantSetupPage from "./pages/TenantSetupPage";
 import RequireSuperadmin from "./components/RequireSuperadmin";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
+import OperationsPage from "./pages/OperationsPage";
 
 function App() {
   return (
@@ -148,6 +149,15 @@ function App() {
           element={
             <RequireAdminPlanSelected>
               <AdminPayrollPage />
+            </RequireAdminPlanSelected>
+          }
+        />
+
+        <Route
+          path="/admin/operations"
+          element={
+            <RequireAdminPlanSelected>
+              <OperationsPage />
             </RequireAdminPlanSelected>
           }
         />

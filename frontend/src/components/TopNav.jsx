@@ -86,6 +86,14 @@ export default function TopNav() {
                 Admin
               </NavLink>
               <NavLink
+                to="/admin/operations"
+                className={({ isActive }) =>
+                  `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
+                }
+              >
+                Operations
+              </NavLink>
+              <NavLink
                 to="/admin/payroll"
                 className={({ isActive }) =>
                   `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
