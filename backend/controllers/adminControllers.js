@@ -737,3 +737,73 @@ exports.deleteUser = async (req, res) => {
     res.status(status).json({ message: error?.message || "Server error" });
   }
 };
+
+exports.getOvertimeAlerts = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({ message: "Tenant is not assigned.", code: "TENANT_REQUIRED" });
+    }
+
+    // warn threshold via query param; default 32 hrs
+    const warnAt = Math.max(1, Number(req.query.warnAt) || 32);
+
+    // Monday 00:00:00 UTC of the current week
+    const now = new Date();
+    const utcDay = now.getUTCDay();
+    const diffToMonday = utcDay === 0 ? -6 : 1 - utcDay;
+    const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diffToMonday));
+
+    const entries = await TimeEntry.find({
+      tenantId,
+      punchIn: { $gte: weekStart },
+    })
+      .populate("staff", "firstName lastName email role isActive")
+      .lean();
+
+    const entryIds = entries.map((e) => e._id);
+    const corrections = await TimeEntryCorrection.find({
+      tenantId,
+      timeEntry: { $in: entryIds },
+    })
+      .select("timeEntry effectivePunchIn effectivePunchOut")
+      .lean();
+
+    const corrMap = new Map(corrections.map((c) => [String(c.timeEntry), c]));
+
+    // sum hours per staff member
+    const hoursMap = new Map();
+    for (const entry of entries) {
+      if (!entry.staff) continue;
+      const corr = corrMap.get(String(entry._id));
+      const start = new Date(corr?.effectivePunchIn ?? entry.punchIn);
+      // use effective punchOut; null punchOut means still clocked in — use now
+      const rawEnd = corr ? corr.effectivePunchOut : entry.punchOut;
+      const end = rawEnd ? new Date(rawEnd) : now;
+      const hrs = Math.max(0, (end - start) / 3600000);
+
+      const key = String(entry.staff._id);
+      if (!hoursMap.has(key)) hoursMap.set(key, { staff: entry.staff, hours: 0, clockedIn: false });
+      hoursMap.get(key).hours += hrs;
+      if (!entry.punchOut) hoursMap.get(key).clockedIn = true;
+    }
+
+    const alerts = [];
+    for (const { staff, hours, clockedIn } of hoursMap.values()) {
+      if (hours < warnAt) continue;
+      alerts.push({
+        staff: { _id: staff._id, firstName: staff.firstName, lastName: staff.lastName, email: staff.email },
+        hoursThisWeek: Math.round(hours * 100) / 100,
+        clockedIn,
+        status: hours >= 40 ? "overtime" : "approaching",
+      });
+    }
+
+    alerts.sort((a, b) => b.hoursThisWeek - a.hoursThisWeek);
+
+    return res.json({ weekStart, warnAt, count: alerts.length, alerts });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: error.message || "Server error" });
+  }
+};

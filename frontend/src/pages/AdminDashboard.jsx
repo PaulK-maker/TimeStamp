@@ -256,6 +256,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import JobsManagementPanel from "../components/JobsManagementPanel";
 import UserManagementTable from "../components/UserManagementTable";
+import OvertimeAlertsPanel from "../components/OvertimeAlertsPanel";
 import api from "../services/api";
 import { getMe } from "../services/me";
 
@@ -959,6 +960,8 @@ const AdminDashboard = () => {
             {errorMsg}
           </div>
         )}
+
+        <OvertimeAlertsPanel />
 
         {/* Time Logs */}
         <div

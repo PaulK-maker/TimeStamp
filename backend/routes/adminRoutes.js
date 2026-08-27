@@ -15,6 +15,7 @@ const {
   emailHoursSummaryReport,
   grantPayrollRunAccess,
   revokePayrollRunAccess,
+  getOvertimeAlerts,
 } = require("../controllers/adminControllers");
 const {
   createPayrollRun,
@@ -182,6 +183,14 @@ router.post(
   requireFeature("payroll"),
   requirePayrollRunAccess,
   revokePayrollRunAccess
+);
+
+router.get(
+  "/overtime-alerts",
+  auth,
+  authorizeRoles("admin"),
+  requireFeature("viewLogs"),
+  getOvertimeAlerts
 );
 
 module.exports = router;
