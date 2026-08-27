@@ -255,6 +255,8 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import JobsManagementPanel from "../components/JobsManagementPanel";
+import TrainingTrackerPanel from "../components/TrainingTrackerPanel";
+import ActivitySchedulePanel from "../components/ActivitySchedulePanel";
 import UserManagementTable from "../components/UserManagementTable";
 import api from "../services/api";
 import { getMe } from "../services/me";
@@ -1101,6 +1103,10 @@ const AdminDashboard = () => {
         </div>
 
         <JobsManagementPanel />
+
+        <TrainingTrackerPanel />
+
+        <ActivitySchedulePanel />
 
         {/* User Management */}
         <UserManagementTable />
