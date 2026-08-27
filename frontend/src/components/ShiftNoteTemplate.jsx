@@ -1,12 +1,46 @@
 import React, { useEffect, useState } from "react";
 import { getMe } from "../services/me";
 
-const LINES = 10;
+const FORM_TYPES = ["Progress Narrative", "Activity", "Report"];
 
-function printShiftNote({ staffName, facilityName, date }) {
-  const ruled = Array.from({ length: LINES }, () =>
-    `<div style="border-bottom:1px solid #ccc;min-height:28px;margin-bottom:4px"></div>`
+function ruled(count) {
+  return Array.from({ length: count }, () =>
+    `<div style="border-bottom:1px solid #ccc;min-height:26px;margin-bottom:5px"></div>`
   ).join("");
+}
+
+function printForm({ staffName, formType, layout }) {
+  const isPlain = layout === "plain";
+
+  const content = isPlain ? `
+    <div class="field" style="margin-bottom:12px">
+      <div class="label">Staff Name</div>
+      <div class="line">${staffName || ""}</div>
+    </div>
+    <div class="label" style="margin-bottom:6px">Notes</div>
+    ${ruled(22)}
+  ` : `
+    <div class="row">
+      <div class="field">
+        <div class="label">Staff Name</div>
+        <div class="line">${staffName || ""}</div>
+      </div>
+      <div class="field">
+        <div class="label">Shift From</div>
+        <div class="line"></div>
+      </div>
+      <div class="field">
+        <div class="label">Shift To</div>
+        <div class="line"></div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <div class="label">Client Name</div>
+      <div class="line"></div>
+    </div>
+    <div class="label" style="margin-bottom:6px">Notes / Observations</div>
+    ${ruled(13)}
+  `;
 
   const win = window.open("", "_blank");
   if (!win) return;
@@ -14,64 +48,43 @@ function printShiftNote({ staffName, facilityName, date }) {
   win.document.write(`
     <html>
     <head>
-      <title>Shift Note</title>
+      <title> </title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; color: #000; }
-        h2   { text-align: center; margin-bottom: 4px; font-size: 18px; }
-        .sub { text-align: center; color: #555; margin-bottom: 24px; font-size: 13px; }
-        .row { display: flex; gap: 24px; margin-bottom: 16px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+          font-family: Arial, sans-serif;
+          font-size: 13px;
+          color: #000;
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+          padding: 24px 40px 20px;
+        }
+        h2    { text-align: center; font-size: 16px; margin-bottom: 14px; }
+        .row  { display: flex; gap: 20px; margin-bottom: 14px; }
         .field { flex: 1; }
-        .label { font-size: 11px; text-transform: uppercase; color: #555; margin-bottom: 4px; }
-        .line  { border-bottom: 1px solid #000; min-height: 26px; }
-        .restricted { font-size: 11px; color: #888; font-style: italic; }
-        .sig   { margin-top: 32px; display: flex; gap: 32px; }
-        .sig .field { flex: 2; }
-        .sig .date  { flex: 1; }
-        @media print { button { display: none; } }
+        .label { font-size: 10px; text-transform: uppercase; color: #555; margin-bottom: 3px; letter-spacing: 0.4px; }
+        .line  { border-bottom: 1px solid #000; min-height: 24px; }
+        .body  { flex: 1; }
+        .sig   { display: flex; gap: 32px; padding-top: 12px; margin-top: auto; }
+        .sig .sfield { flex: 2; }
+        .sig .dfield { flex: 1; }
+        @page  { margin: 0.45in; }
+        @media print { body { padding: 0; } }
       </style>
     </head>
     <body>
-      <h2>${facilityName || "Daily Shift Note"}</h2>
-      <div class="sub">Confidential — For internal use only</div>
-
-      <div class="row">
-        <div class="field">
-          <div class="label">Staff Name</div>
-          <div class="line">${staffName || ""}</div>
-        </div>
-        <div class="field">
-          <div class="label">Date</div>
-          <div class="line">${date}</div>
-        </div>
+      <h2>${formType}</h2>
+      <div class="body">
+        ${content}
       </div>
-
-      <div class="row">
-        <div class="field">
-          <div class="label">Shift From</div>
-          <div class="line"></div>
-        </div>
-        <div class="field">
-          <div class="label">Shift To</div>
-          <div class="line"></div>
-        </div>
-      </div>
-
-      <div style="margin-bottom:16px">
-        <div class="label">Client Name <span class="restricted">(write after printing — do not pre-fill)</span></div>
-        <div class="line"></div>
-      </div>
-
-      <div style="margin-bottom:8px">
-        <div class="label">Notes / Observations</div>
-        ${ruled}
-      </div>
-
       <div class="sig">
-        <div class="field">
+        <div class="sfield">
           <div class="label">Staff Signature</div>
           <div class="line"></div>
         </div>
-        <div class="date">
+        <div class="dfield">
           <div class="label">Date Signed</div>
           <div class="line"></div>
         </div>
@@ -85,39 +98,49 @@ function printShiftNote({ staffName, facilityName, date }) {
 }
 
 export default function ShiftNoteTemplate() {
-  const [staffName, setStaffName]       = useState("");
-  const [facilityName, setFacilityName] = useState("");
+  const [staffName, setStaffName] = useState("");
+  const [formType, setFormType]   = useState(FORM_TYPES[0]);
+  const [layout, setLayout]       = useState("template");
 
   useEffect(() => {
     getMe().then((me) => {
       if (me?.firstName || me?.lastName) {
         setStaffName(`${me.firstName || ""} ${me.lastName || ""}`.trim());
       }
-      if (me?.tenantName) setFacilityName(me.tenantName);
     }).catch(() => {});
   }, []);
 
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-
   return (
     <div style={{ background: "#fff", padding: 20, borderRadius: 8, marginBottom: 20 }}>
-      <h2 style={{ margin: "0 0 4px" }}>🗒️ Shift Note Template</h2>
+      <h2 style={{ margin: "0 0 4px" }}>🗒️ Print Form</h2>
       <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6b7280" }}>
-        Prints a blank form. Client name is left intentionally blank — write it by hand after printing.
+        Client name field is left blank — write by hand after printing.
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 12, alignItems: "end" }}>
         <div>
-          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Facility / Organization Name</label>
-          <input
-            value={facilityName}
-            onChange={(e) => setFacilityName(e.target.value)}
-            placeholder="e.g. Sunrise Care Home"
+          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Form Type</label>
+          <select
+            value={formType}
+            onChange={(e) => setFormType(e.target.value)}
             style={{ padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" }}
-          />
+          >
+            {FORM_TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Staff Name (pre-filled on form)</label>
+          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Layout</label>
+          <select
+            value={layout}
+            onChange={(e) => setLayout(e.target.value)}
+            style={{ padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" }}
+          >
+            <option value="template">Template (structured)</option>
+            <option value="plain">Plain (blank lines)</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Staff Name (pre-filled)</label>
           <input
             value={staffName}
             onChange={(e) => setStaffName(e.target.value)}
@@ -126,10 +149,10 @@ export default function ShiftNoteTemplate() {
           />
         </div>
         <button
-          onClick={() => printShiftNote({ staffName, facilityName, date: today })}
+          onClick={() => printForm({ staffName, formType, layout })}
           style={{ padding: "10px 18px", background: "#111827", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}
         >
-          Print Blank Form
+          Print Form
         </button>
       </div>
     </div>
