@@ -70,8 +70,8 @@ function printForm({ staffName, formType, layout }) {
         .sig   { display: flex; gap: 32px; padding-top: 12px; margin-top: auto; }
         .sig .sfield { flex: 2; }
         .sig .dfield { flex: 1; }
-        @page  { margin: 0.45in; }
-        @media print { body { padding: 0; } }
+        @page  { margin: 0; }
+        @media print { body { padding: 0.45in; } }
       </style>
     </head>
     <body>
