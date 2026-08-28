@@ -264,13 +264,6 @@ export default function ShiftNoteTemplate() {
   );
 }
 
-
-const FORM_TYPES = ["Progress Narrative", "Activity", "Report"];
-
-function ruled(count) {
-  return Array.from({ length: count }, () =>
-    `<div style="border-bottom:1px solid #ccc;min-height:26px;margin-bottom:5px"></div>`
-  ).join("");
 }
 
 function printForm({ staffName, formType, layout }) {
