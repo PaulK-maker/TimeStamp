@@ -132,15 +132,16 @@ export default function ShiftNoteTemplate() {
 
   useEffect(() => () => {
     wantListeningRef.current = false;
-    recognitionRef.current?.stop();
+    recognitionRef.current?.abort();
   }, []);
 
-  const startRecognition = () => {
+  const startListening = () => {
     if (!SpeechRecognition) return;
     const rec = new SpeechRecognition();
     rec.continuous     = true;
     rec.interimResults = true;
     rec.lang           = "en-US";
+    rec.maxAlternatives = 1;
 
     rec.onresult = (event) => {
       let interim = "";
@@ -148,17 +149,18 @@ export default function ShiftNoteTemplate() {
         const t = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           setNotes((prev) => prev + t + " ");
+          setInterimText("");
         } else {
           interim += t;
         }
       }
-      setInterimText(interim);
+      if (interim) setInterimText(interim);
     };
 
-    // auto-restart on pause so continuous mode actually stays alive
+    // reuse same instance on restart — recreating it causes Chrome to silently drop onresult
     rec.onend = () => {
       if (wantListeningRef.current) {
-        try { startRecognition(); } catch (_) {}
+        try { rec.start(); } catch (_) {}
       } else {
         setIsListening(false);
         setInterimText("");
@@ -180,7 +182,7 @@ export default function ShiftNoteTemplate() {
   const toggleListening = () => {
     if (wantListeningRef.current) {
       wantListeningRef.current = false;
-      recognitionRef.current?.stop();
+      recognitionRef.current?.abort();
       setIsListening(false);
       setInterimText("");
       return;
@@ -189,7 +191,7 @@ export default function ShiftNoteTemplate() {
     setDictationError("");
     wantListeningRef.current = true;
     setIsListening(true);
-    startRecognition();
+    startListening();
   };
 
   const inputStyle = { padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" };
