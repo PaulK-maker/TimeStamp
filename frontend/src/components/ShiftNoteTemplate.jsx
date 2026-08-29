@@ -117,8 +117,10 @@ export default function ShiftNoteTemplate() {
   const [layout, setLayout]           = useState("template");
   const [notes, setNotes]             = useState("");
   const [interimText, setInterimText] = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef                = useRef(null);
+  const [isListening, setIsListening]   = useState(false);
+  const [dictationError, setDictationError] = useState("");
+  const recognitionRef                  = useRef(null);
+  const wantListeningRef                = useRef(false);
 
   useEffect(() => {
     getMe().then((me) => {
@@ -128,15 +130,13 @@ export default function ShiftNoteTemplate() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => () => recognitionRef.current?.stop(), []);
+  useEffect(() => () => {
+    wantListeningRef.current = false;
+    recognitionRef.current?.stop();
+  }, []);
 
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      return;
-    }
+  const startRecognition = () => {
     if (!SpeechRecognition) return;
-
     const rec = new SpeechRecognition();
     rec.continuous     = true;
     rec.interimResults = true;
@@ -155,12 +155,41 @@ export default function ShiftNoteTemplate() {
       setInterimText(interim);
     };
 
-    rec.onend  = () => { setIsListening(false); setInterimText(""); };
-    rec.onerror = () => { setIsListening(false); setInterimText(""); };
+    // auto-restart on pause so continuous mode actually stays alive
+    rec.onend = () => {
+      if (wantListeningRef.current) {
+        try { startRecognition(); } catch (_) {}
+      } else {
+        setIsListening(false);
+        setInterimText("");
+      }
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      setDictationError(`Mic error: ${e.error}. Check browser mic permission.`);
+      wantListeningRef.current = false;
+      setIsListening(false);
+      setInterimText("");
+    };
 
     recognitionRef.current = rec;
     rec.start();
+  };
+
+  const toggleListening = () => {
+    if (wantListeningRef.current) {
+      wantListeningRef.current = false;
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      setInterimText("");
+      return;
+    }
+    if (!SpeechRecognition) return;
+    setDictationError("");
+    wantListeningRef.current = true;
     setIsListening(true);
+    startRecognition();
   };
 
   const inputStyle = { padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" };
@@ -243,6 +272,9 @@ export default function ShiftNoteTemplate() {
           <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
             🎤 Listening… speak clearly. Text finalizes when you pause.
           </p>
+        )}
+        {dictationError && (
+          <p style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{dictationError}</p>
         )}
       </div>
 
