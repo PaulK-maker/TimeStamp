@@ -138,7 +138,7 @@ export default function ShiftNoteTemplate() {
   const startListening = () => {
     if (!SpeechRecognition) return;
     const rec = new SpeechRecognition();
-    rec.continuous     = true;
+    rec.continuous     = false;  // one utterance per session avoids Chrome accumulating partial finals
     rec.interimResults = true;
     rec.lang           = "en-US";
     rec.maxAlternatives = 1;
