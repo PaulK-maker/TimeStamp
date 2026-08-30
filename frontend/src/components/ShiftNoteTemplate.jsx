@@ -157,10 +157,10 @@ export default function ShiftNoteTemplate() {
       if (interim) setInterimText(interim);
     };
 
-    // reuse same instance on restart — recreating it causes Chrome to silently drop onresult
+    // new instance each restart — same instance resets resultIndex to 0 but keeps old results, causing repeats
     rec.onend = () => {
       if (wantListeningRef.current) {
-        try { rec.start(); } catch (_) {}
+        startListening();
       } else {
         setIsListening(false);
         setInterimText("");
