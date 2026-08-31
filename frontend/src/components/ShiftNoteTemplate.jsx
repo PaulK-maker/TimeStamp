@@ -121,6 +121,8 @@ export default function ShiftNoteTemplate() {
   const [dictationError, setDictationError] = useState("");
   const recognitionRef                  = useRef(null);
   const wantListeningRef                = useRef(false);
+  const sessionFinalsRef                = useRef({});   // latest transcript per result index
+  const baseNotesRef                    = useRef("");   // notes captured when dictation started
 
   useEffect(() => {
     getMe().then((me) => {
@@ -135,10 +137,22 @@ export default function ShiftNoteTemplate() {
     recognitionRef.current?.abort();
   }, []);
 
-  const startListening = () => {
+  const startListening = (isRestart = false) => {
     if (!SpeechRecognition) return;
+    if (isRestart) {
+      // Fold previous session's finals into base so they survive the new session's rebuild
+      const prev = Object.keys(sessionFinalsRef.current)
+        .sort((a, b) => Number(a) - Number(b))
+        .map(k => sessionFinalsRef.current[k].trim())
+        .filter(Boolean)
+        .join(" ");
+      const base = baseNotesRef.current;
+      baseNotesRef.current = base + (base && prev ? " " : "") + prev;
+      sessionFinalsRef.current = {};
+    }
+
     const rec = new SpeechRecognition();
-    rec.continuous     = false;  // one utterance per session avoids Chrome accumulating partial finals
+    rec.continuous     = true;  // keep session alive across pauses to avoid losing words during restart gaps
     rec.interimResults = true;
     rec.lang           = "en-US";
     rec.maxAlternatives = 1;
@@ -148,19 +162,27 @@ export default function ShiftNoteTemplate() {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          setNotes((prev) => prev + t + " ");
+          sessionFinalsRef.current[i] = t;  // always keep latest; Chrome may revise same index
           setInterimText("");
         } else {
           interim += t;
         }
       }
+      // Rebuild from base + each index's best transcript — prevents same-index accumulation
+      const finalText = Object.keys(sessionFinalsRef.current)
+        .sort((a, b) => Number(a) - Number(b))
+        .map(k => sessionFinalsRef.current[k].trim())
+        .filter(Boolean)
+        .join(" ");
+      const base = baseNotesRef.current;
+      setNotes(base + (base && finalText ? " " : "") + finalText);
       if (interim) setInterimText(interim);
     };
 
     // new instance each restart — same instance resets resultIndex to 0 but keeps old results, causing repeats
     rec.onend = () => {
       if (wantListeningRef.current) {
-        startListening();
+        startListening(true);
       } else {
         setIsListening(false);
         setInterimText("");
@@ -191,6 +213,8 @@ export default function ShiftNoteTemplate() {
     setDictationError("");
     wantListeningRef.current = true;
     setIsListening(true);
+    baseNotesRef.current = notes;
+    sessionFinalsRef.current = {};
     startListening();
   };
 
