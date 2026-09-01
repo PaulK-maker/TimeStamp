@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getMe } from "../services/me";
+import api from "../services/api";
 
 const FORM_TYPES = ["Progress Narrative", "Activity", "Report"];
 
@@ -106,10 +107,7 @@ function printForm({ staffName, formType, layout, notes }) {
   win.print();
 }
 
-const SpeechRecognition =
-  typeof window !== "undefined"
-    ? window.SpeechRecognition || window.webkitSpeechRecognition
-    : null;
+const isDictationSupported = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext) && window.WebSocket;
 
 export default function ShiftNoteTemplate() {
   const [staffName, setStaffName]     = useState("");
@@ -119,10 +117,11 @@ export default function ShiftNoteTemplate() {
   const [interimText, setInterimText] = useState("");
   const [isListening, setIsListening]   = useState(false);
   const [dictationError, setDictationError] = useState("");
-  const recognitionRef                  = useRef(null);
-  const wantListeningRef                = useRef(false);
-  const sessionFinalsRef                = useRef({});   // latest transcript per result index
-  const baseNotesRef                    = useRef("");   // notes captured when dictation started
+
+  const audioContextRef = useRef(null);
+  const processorRef = useRef(null);
+  const streamRef = useRef(null);
+  const wsRef = useRef(null);
 
   useEffect(() => {
     getMe().then((me) => {
@@ -132,90 +131,139 @@ export default function ShiftNoteTemplate() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => () => {
-    wantListeningRef.current = false;
-    recognitionRef.current?.abort();
-  }, []);
+  const stopListening = () => {
+    setIsListening(false);
+    setInterimText("");
 
-  const startListening = (isRestart = false) => {
-    if (!SpeechRecognition) return;
-    if (isRestart) {
-      // Fold previous session's finals into base so they survive the new session's rebuild
-      const prev = Object.keys(sessionFinalsRef.current)
-        .sort((a, b) => Number(a) - Number(b))
-        .map(k => sessionFinalsRef.current[k].trim())
-        .filter(Boolean)
-        .join(" ");
-      const base = baseNotesRef.current;
-      baseNotesRef.current = base + (base && prev ? " " : "") + prev;
-      sessionFinalsRef.current = {};
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close();
+      }
+      wsRef.current = null;
     }
 
-    const rec = new SpeechRecognition();
-    rec.continuous     = true;  // keep session alive across pauses to avoid losing words during restart gaps
-    rec.interimResults = true;
-    rec.lang           = "en-US";
-    rec.maxAlternatives = 1;
+    if (processorRef.current) {
+      try { processorRef.current.disconnect(); } catch (_) {}
+      processorRef.current = null;
+    }
 
-    rec.onresult = (event) => {
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          sessionFinalsRef.current[i] = t;  // always keep latest; Chrome may revise same index
-          setInterimText("");
-        } else {
-          interim += t;
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch (_) {}
+      audioContextRef.current = null;
+    }
+
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (_) {}
+      streamRef.current = null;
+    }
+  };
+
+  useEffect(() => () => {
+    stopListening();
+  }, []);
+
+  const startListening = async () => {
+    try {
+      setDictationError("");
+
+      // 1) Get short-lived auth token from backend
+      const res = await api.get("/dictate-token");
+      const token = res.data?.token;
+      if (!token) throw new Error("Could not retrieve dictation token");
+
+      // 2) Access mic
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const sampleRate = audioContext.sampleRate;
+
+      // 3) Connect WebSocket to ws/dictate via proxy
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = process.env.REACT_APP_API_BASE_URL
+        ? process.env.REACT_APP_API_BASE_URL.replace(/^https?:\/\//, "")
+        : (window.location.hostname === "localhost" ? "localhost:5001" : "api.timecapcha.app");
+
+      const wsUrl = `${protocol}//${host}/ws/dictate?token=${encodeURIComponent(token)}&sr=${sampleRate}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsListening(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "error") {
+            setDictationError(data.message);
+            stopListening();
+          } else if (data.type === "final") {
+            const text = data.transcript?.trim();
+            if (text) {
+              setNotes((prev) => {
+                const endedWithSpace = prev.endsWith(" ") || prev === "";
+                return prev + (endedWithSpace ? "" : " ") + text + " ";
+              });
+            }
+            setInterimText("");
+          } else if (data.type === "interim") {
+            setInterimText(data.transcript || "");
+          }
+        } catch (err) {
+          console.error("WS parse error:", err);
         }
-      }
-      // Rebuild from base + each index's best transcript — prevents same-index accumulation
-      const finalText = Object.keys(sessionFinalsRef.current)
-        .sort((a, b) => Number(a) - Number(b))
-        .map(k => sessionFinalsRef.current[k].trim())
-        .filter(Boolean)
-        .join(" ");
-      const base = baseNotesRef.current;
-      setNotes(base + (base && finalText ? " " : "") + finalText);
-      if (interim) setInterimText(interim);
-    };
+      };
 
-    // new instance each restart — same instance resets resultIndex to 0 but keeps old results, causing repeats
-    rec.onend = () => {
-      if (wantListeningRef.current) {
-        startListening(true);
-      } else {
+      ws.onerror = () => {
+        setDictationError("WebSocket connection error");
+        stopListening();
+      };
+
+      ws.onclose = () => {
         setIsListening(false);
         setInterimText("");
-      }
-    };
+      };
 
-    rec.onerror = (e) => {
-      if (e.error === "no-speech" || e.error === "aborted") return;
-      setDictationError(`Mic error: ${e.error}. Check browser mic permission.`);
-      wantListeningRef.current = false;
+      // 4) ScriptProcessor to convert Float32 to Int16 PCM and stream
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        const len = inputData.length;
+        const buffer = new Int16Array(len);
+        for (let i = 0; i < len; i++) {
+          const s = Math.max(-1, Math.min(1, inputData[i]));
+          buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        ws.send(buffer.buffer);
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+    } catch (err) {
+      console.error("startListening failed:", err);
+      setDictationError(err.message || "Failed to start microphone. Please check permission.");
       setIsListening(false);
-      setInterimText("");
-    };
-
-    recognitionRef.current = rec;
-    rec.start();
+      stopListening();
+    }
   };
 
   const toggleListening = () => {
-    if (wantListeningRef.current) {
-      wantListeningRef.current = false;
-      recognitionRef.current?.abort();
-      setIsListening(false);
-      setInterimText("");
-      return;
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
     }
-    if (!SpeechRecognition) return;
-    setDictationError("");
-    wantListeningRef.current = true;
-    setIsListening(true);
-    baseNotesRef.current = notes;
-    sessionFinalsRef.current = {};
-    startListening();
   };
 
   const inputStyle = { padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" };
@@ -251,10 +299,10 @@ export default function ShiftNoteTemplate() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <label style={{ fontSize: 12, fontWeight: 600 }}>Notes / Observations</label>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {!SpeechRecognition && (
+            {!isDictationSupported && (
               <span style={{ fontSize: 11, color: "#9ca3af" }}>Dictation not supported in this browser</span>
             )}
-            {SpeechRecognition && (
+            {isDictationSupported && (
               <button
                 onClick={toggleListening}
                 title={isListening ? "Stop dictation" : "Start dictation"}
@@ -290,7 +338,7 @@ export default function ShiftNoteTemplate() {
         <textarea
           value={notes + interimText}
           onChange={(e) => { setInterimText(""); setNotes(e.target.value); }}
-          placeholder={SpeechRecognition ? 'Type here or click "Dictate" to speak your notes…' : "Type your notes here…"}
+          placeholder={isDictationSupported ? 'Type here or click "Dictate" to speak your notes…' : "Type your notes here…"}
           rows={6}
           style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", fontSize: 14, lineHeight: 1.6 }}
         />

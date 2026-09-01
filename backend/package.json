@@ -15,6 +15,7 @@
   "description": "",
   "dependencies": {
     "@clerk/express": "^1.7.6",
+    "@deepgram/sdk": "^5.9.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
@@ -24,7 +25,8 @@
     "moment": "^2.30.1",
     "mongoose": "^9.0.2",
     "nodemailer": "^6.9.16",
-    "stripe": "^18.5.0"
+    "stripe": "^18.5.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "jest": "^30.4.2",

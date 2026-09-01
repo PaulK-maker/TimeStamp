@@ -283,7 +283,7 @@ exports.redeemJoinOtp = async (req, res) => {
       expiresAt: { $gt: now },
     })
       .sort({ createdAt: -1 })
-      .select("+codeHash tenantId verifyAttempts lockedUntil expiresAt");
+      .select("+codeHash");
 
     if (!otp || !otp.tenantId) {
       return res.status(400).json({ message: "Invalid or expired code" });
@@ -434,7 +434,7 @@ exports.verifyBootstrapOtp = async (req, res) => {
       expiresAt: { $gt: now },
     })
       .sort({ createdAt: -1 })
-      .select("+codeHash verifyAttempts lockedUntil");
+      .select("+codeHash");
 
     if (!candidates.length) {
       return res.status(400).json({ message: "Invalid or expired code" });

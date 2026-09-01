@@ -249,6 +249,16 @@ if (ENABLE_MOCK_API) {
 
 // 6. Additional API routes
 app.use("/api/auth", authRoutes);
+
+// Short-lived JWT for WebSocket dictation auth (works for both local JWT and Clerk users)
+app.get("/api/dictate-token", require("./middleware/authMiddleware"), (req, res) => {
+  const token = require("jsonwebtoken").sign(
+    { id: req.user._id, role: req.user.role, purpose: "dictate" },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  res.json({ token });
+});
 app.use("/api/admin", adminRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/tenant", tenantRoutes);
@@ -332,9 +342,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 9. Start the server
+// 9. Start the server (http.createServer required for WebSocket upgrade handling)
+const http = require("http");
+const setupDictateWs = require("./routes/dictateRoutes");
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+setupDictateWs(server);
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/`);
   console.log(`📍 Ping: http://localhost:${PORT}/api/ping`);
