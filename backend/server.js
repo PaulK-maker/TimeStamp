@@ -66,12 +66,12 @@ app.use(cors({
     if (allowedOrigins.has(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS blocked: ${origin}`));
+      console.warn(`⚠️ CORS blocked for origin: ${origin}`);
+      callback(null, false);
     }
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization", "x-superadmin-key"]
+  credentials: true
 }));
 
 // 3. Body parsers for JSON and URL-encoded requests
