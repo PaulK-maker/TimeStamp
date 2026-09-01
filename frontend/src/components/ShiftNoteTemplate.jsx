@@ -168,8 +168,8 @@ export default function ShiftNoteTemplate() {
     try {
       setDictationError("");
 
-      // 1) Get short-lived auth token from backend
-      const res = await api.get("/dictate-token");
+      // 1) Get short-lived auth token from backend with a cache-buster
+      const res = await api.get(`/dictate-token?_cb=${Date.now()}`);
       const token = res.data?.token;
       if (!token) throw new Error("Could not retrieve dictation token");
 

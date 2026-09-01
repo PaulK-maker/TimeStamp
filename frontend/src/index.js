@@ -5,6 +5,15 @@ import { BrowserRouter, useNavigate } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 
+// Automatically unregister any stale or legacy service worker (sw.js)
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      registration.unregister();
+    }
+  }).catch((err) => console.error("SW unregister failed:", err));
+}
+
 const publishableKey = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
 const container = document.getElementById("root");
 const root = createRoot(container);
