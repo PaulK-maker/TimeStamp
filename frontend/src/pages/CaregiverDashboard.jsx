@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import Header from "../components/Header";
+import ShiftNoteTemplate from "../components/ShiftNoteTemplate";
 import api from "../services/api";
 import { listMyJobs } from "../services/jobs";
 import { getMe } from "../services/me";
@@ -699,6 +700,11 @@ const CaregiverDashboard = () => {
             </table>
           </div>
         )}
+
+        {/* Shift Note Dictation and Form Template */}
+        <div style={{ marginTop: 24 }}>
+          <ShiftNoteTemplate />
+        </div>
       </div>
 
       {/* Missed Punch Request Modal */}
