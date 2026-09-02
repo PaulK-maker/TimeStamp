@@ -250,34 +250,40 @@ if (ENABLE_MOCK_API) {
 // 6. Additional API routes
 app.use("/api/auth", authRoutes);
 
-// Short-lived JWT for WebSocket dictation auth (works for both local JWT and Clerk users)
-// Permissive endpoint: lets caregivers dictate even if their adblocker blocks Clerk on the frontend.
-app.get("/api/dictate-token", (req, res) => {
-  let userId = "guest-dictation-" + Date.now();
-  let userRole = "caregiver";
+// High-reliability multipart form dictation endpoint with direct Deepgram transcription
+const multer = require("multer");
+const upload = multer({ limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB max limit
+app.post("/api/dictate-file", upload.single("audio"), async (req, res) => {
+  try {
+    if (!process.env.DEEPGRAM_API_KEY) {
+      return res.status(500).json({ message: "DEEPGRAM_API_KEY not configured on server" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No audio file uploaded" });
+    }
 
-  // If authorization header is present and valid, extract profile details cleanly.
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    try {
-      const bearerToken = authHeader.slice("Bearer ".length).trim();
-      const parts = bearerToken.split(".");
-      if (parts.length >= 2) {
-        const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
-        if (payload) {
-          userId = payload.id || payload.sub || userId;
-          userId = userId.toString();
-        }
+    const axios = require("axios");
+    const response = await axios.post(
+      "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en-US",
+      req.file.buffer,
+      {
+        headers: {
+          "Authorization": `Token ${process.env.DEEPGRAM_API_KEY}`,
+          "Content-Type": req.file.mimetype || "audio/webm",
+        },
+        timeout: 30000, // 30 second timeout
       }
-    } catch (_) {}
-  }
+    );
 
-  const token = require("jsonwebtoken").sign(
-    { id: userId, role: userRole, purpose: "dictate" },
-    process.env.JWT_SECRET,
-    { expiresIn: "15m" }
-  );
-  res.json({ token });
+    const transcript = response.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
+    res.json({ transcript: transcript.trim() });
+  } catch (err) {
+    console.error("Deepgram file transcription error:", err?.response?.data || err?.message);
+    res.status(500).json({
+      message: "Transcription processing failed",
+      detail: err?.response?.data?.message || err?.message,
+    });
+  }
 });
 app.use("/api/admin", adminRoutes);
 app.use("/api/billing", billingRoutes);
@@ -362,13 +368,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 9. Start the server (http.createServer required for WebSocket upgrade handling)
-const http = require("http");
-const setupDictateWs = require("./routes/dictateRoutes");
+// 9. Start the server
 const PORT = process.env.PORT || 5000;
-const server = http.createServer(app);
-setupDictateWs(server);
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/`);
   console.log(`📍 Ping: http://localhost:${PORT}/api/ping`);

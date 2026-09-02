@@ -108,21 +108,21 @@ function printForm({ staffName, formType, layout, notes }) {
   win.print();
 }
 
-const isDictationSupported = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext) && window.WebSocket;
+const isDictationSupported = typeof window !== "undefined" && window.MediaRecorder;
 
 export default function ShiftNoteTemplate() {
   const [staffName, setStaffName]     = useState("");
   const [formType, setFormType]       = useState(FORM_TYPES[0]);
   const [layout, setLayout]           = useState("template");
   const [notes, setNotes]             = useState("");
-  const [interimText, setInterimText] = useState("");
   const [isListening, setIsListening]   = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
   const [dictationError, setDictationError] = useState("");
 
-  const audioContextRef = useRef(null);
-  const processorRef = useRef(null);
-  const streamRef = useRef(null);
-  const wsRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const durationTimerRef = useRef(null);
 
   useEffect(() => {
     getMe().then((me) => {
@@ -132,146 +132,104 @@ export default function ShiftNoteTemplate() {
     }).catch(() => {});
   }, []);
 
-  const stopListening = () => {
+  const stopListening = (shouldTranscribe = true) => {
     setIsListening(false);
-    setInterimText("");
+    clearInterval(durationTimerRef.current);
 
-    if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-        wsRef.current.close();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      if (!shouldTranscribe) {
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onstop = null;
       }
-      wsRef.current = null;
+      mediaRecorderRef.current.stop();
     }
 
-    if (processorRef.current) {
-      try { processorRef.current.disconnect(); } catch (_) {}
-      processorRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      try { audioContextRef.current.close(); } catch (_) {}
-      audioContextRef.current = null;
-    }
-
-    if (streamRef.current) {
-      try {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      } catch (_) {}
-      streamRef.current = null;
+    if (mediaRecorderRef.current?.stream) {
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
     }
   };
 
   useEffect(() => () => {
-    stopListening();
+    stopListening(false);
   }, []);
 
   const startListening = async () => {
     try {
       setDictationError("");
+      setRecordDuration(0);
+      audioChunksRef.current = [];
 
-      // Get base URL for dynamic fallback get call completely bypassing Clerk middleware error blocks
-      const API_BASE_URL =
-        process.env.REACT_APP_API_BASE_URL ||
-        (typeof window !== "undefined" && window.location.hostname === "localhost"
-          ? "http://localhost:5001"
-          : "https://api.timecapcha.app");
-
-      // 1) Get short-lived auth token from backend with a cache-buster bypassing global custom request interceptors
-      const res = await axios.get(`${API_BASE_URL}/api/dictate-token?_cb=${Date.now()}`);
-      const token = res.data?.token;
-      if (!token) throw new Error("Could not retrieve dictation token");
-
-      // 2) Access mic
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
 
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const audioContext = new AudioContextClass();
-      audioContextRef.current = audioContext;
-
-      const source = audioContext.createMediaStreamSource(stream);
-      const sampleRate = audioContext.sampleRate;
-
-      // 3) Connect WebSocket to ws/dictate via proxy
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = process.env.REACT_APP_API_BASE_URL
-        ? process.env.REACT_APP_API_BASE_URL.replace(/^https?:\/\//, "")
-        : (window.location.hostname === "localhost" ? "localhost:5001" : "api.timecapcha.app");
-
-      const wsUrl = `${protocol}//${host}/ws/dictate?token=${encodeURIComponent(token)}&sr=${sampleRate}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsListening(true);
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
 
-      ws.onmessage = (event) => {
+      recorder.onstop = async () => {
+        if (audioChunksRef.current.length === 0) return;
+        setIsProcessing(true);
+
         try {
-          const data = JSON.parse(event.data);
-          if (data.type === "error") {
-            setDictationError(data.message);
-            stopListening();
-          } else if (data.type === "final") {
-            const text = data.transcript?.trim();
-            if (text) {
-              setNotes((prev) => {
-                const endedWithSpace = prev.endsWith(" ") || prev === "";
-                return prev + (endedWithSpace ? "" : " ") + text + " ";
-              });
-            }
-            setInterimText("");
-          } else if (data.type === "interim") {
-            setInterimText(data.transcript || "");
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "dictation.webm");
+
+          const API_BASE_URL =
+            process.env.REACT_APP_API_BASE_URL ||
+            (typeof window !== "undefined" && window.location.hostname === "localhost"
+              ? "http://localhost:5001"
+              : "https://api.timecapcha.app");
+
+          const res = await axios.post(`${API_BASE_URL}/api/dictate-file`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+            timeout: 35000,
+          });
+
+          const text = res.data?.transcript;
+          if (text) {
+            setNotes((prev) => {
+              const endedWithSpace = prev.endsWith(" ") || prev === "";
+              return prev + (endedWithSpace ? "" : " ") + text + " ";
+            });
           }
         } catch (err) {
-          console.error("WS parse error:", err);
+          console.error("Transcription upload failed:", err);
+          setDictationError(err?.response?.data?.message || err.message || "Failed to transcribe audio.");
+        } finally {
+          setIsProcessing(false);
         }
       };
 
-      ws.onerror = () => {
-        setDictationError("WebSocket connection error");
-        stopListening();
-      };
+      recorder.start();
+      setIsListening(true);
 
-      ws.onclose = () => {
-        setIsListening(false);
-        setInterimText("");
-      };
-
-      // 4) ScriptProcessor to convert Float32 to Int16 PCM and stream
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState !== WebSocket.OPEN) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        const len = inputData.length;
-        const buffer = new Int16Array(len);
-        for (let i = 0; i < len; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-        ws.send(buffer.buffer);
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      durationTimerRef.current = setInterval(() => {
+        setRecordDuration((prev) => prev + 1);
+      }, 1000);
 
     } catch (err) {
       console.error("startListening failed:", err);
       setDictationError(err.message || "Failed to start microphone. Please check permission.");
       setIsListening(false);
-      stopListening();
     }
   };
 
   const toggleListening = () => {
     if (isListening) {
-      stopListening();
+      stopListening(true);
     } else {
       startListening();
     }
+  };
+
+  const formatDuration = (sec) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const inputStyle = { padding: 8, borderRadius: 6, border: "1px solid #ddd", width: "100%" };
@@ -313,30 +271,32 @@ export default function ShiftNoteTemplate() {
             {isDictationSupported && (
               <button
                 onClick={toggleListening}
-                title={isListening ? "Stop dictation" : "Start dictation"}
+                disabled={isProcessing}
+                title={isListening ? "Stop recording & transcribe" : "Start recording"}
                 style={{
                   padding: "6px 14px",
                   borderRadius: 6,
                   border: "none",
-                  cursor: "pointer",
+                  cursor: isProcessing ? "not-allowed" : "pointer",
                   fontWeight: 600,
                   fontSize: 13,
-                  background: isListening ? "#fee2e2" : "#d1fae5",
-                  color: isListening ? "#991b1b" : "#065f46",
+                  background: isListening ? "#fee2e2" : (isProcessing ? "#f3f4f6" : "#d1fae5"),
+                  color: isListening ? "#991b1b" : (isProcessing ? "#9ca3af" : "#065f46"),
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
+                  opacity: isProcessing ? 0.7 : 1,
                 }}
               >
                 <span style={{ fontSize: 16 }}>🎤</span>
-                {isListening ? "Stop" : "Dictate"}
+                {isListening ? `Stop (${formatDuration(recordDuration)})` : (isProcessing ? "Transcribing…" : "Dictate")}
                 {isListening && (
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", display: "inline-block", animation: "pulse 1.5s infinite" }} />
                 )}
               </button>
             )}
             <button
-              onClick={() => { setNotes(""); setInterimText(""); }}
+              onClick={() => { setNotes(""); }}
               style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #ddd", background: "#f9fafb", cursor: "pointer" }}
             >
               Clear
@@ -344,15 +304,20 @@ export default function ShiftNoteTemplate() {
           </div>
         </div>
         <textarea
-          value={notes + interimText}
-          onChange={(e) => { setInterimText(""); setNotes(e.target.value); }}
-          placeholder={isDictationSupported ? 'Type here or click "Dictate" to speak your notes…' : "Type your notes here…"}
+          value={notes}
+          onChange={(e) => { setNotes(e.target.value); }}
+          placeholder={isDictationSupported ? 'Type here or click "Dictate" to record your voice…' : "Type your notes here…"}
           rows={6}
           style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", fontSize: 14, lineHeight: 1.6 }}
         />
         {isListening && (
-          <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-            🎤 Listening… speak clearly. Text finalizes when you pause.
+          <p style={{ fontSize: 11, color: "#ef4444", marginTop: 4, fontWeight: 600 }}>
+            🎤 Recording… speak clearly. Click Stop when finished to transcribe.
+          </p>
+        )}
+        {isProcessing && (
+          <p style={{ fontSize: 11, color: "#059669", marginTop: 4, fontWeight: 600 }}>
+            🔄 Processing transcription via Deepgram Nova-2... please hold on.
           </p>
         )}
         {dictationError && (
