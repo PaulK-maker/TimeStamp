@@ -49,6 +49,7 @@ import CalendarPage from "./pages/CalendarPage";
 import AdminPrintReportPage from "./pages/AdminPrintReportPage";
 import AdminBillingPage from "./pages/AdminBillingPage";
 import AdminPayrollPage from "./pages/AdminPayrollPage";
+import AdminInvoicesPage from "./pages/AdminInvoicesPage";
 import TenantSetupPage from "./pages/TenantSetupPage";
 import RequireSuperadmin from "./components/RequireSuperadmin";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
@@ -158,6 +159,15 @@ function App() {
           element={
             <RequireAdminPlanSelected>
               <OperationsPage />
+            </RequireAdminPlanSelected>
+          }
+        />
+
+        <Route
+          path="/admin/invoices"
+          element={
+            <RequireAdminPlanSelected>
+              <AdminInvoicesPage />
             </RequireAdminPlanSelected>
           }
         />

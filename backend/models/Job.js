@@ -39,6 +39,10 @@ const jobSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    ratePerHour: {
+      type: Number,
+      default: 0,
+    },
     isActive: {
       type: Boolean,
       default: true,

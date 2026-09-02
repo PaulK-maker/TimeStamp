@@ -101,6 +101,14 @@ export default function TopNav() {
               >
                 Payroll
               </NavLink>
+              <NavLink
+                to="/admin/invoices"
+                className={({ isActive }) =>
+                  `btn topNavBtn${isActive ? " topNavBtnActive" : ""}`
+                }
+              >
+                Invoices
+              </NavLink>
             </>
           )}
 
