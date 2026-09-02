@@ -23,7 +23,7 @@ exports.createInvoice = async (req, res) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(403).json({ message: "Tenant required" });
 
-    const { invoiceNumber, clientName, billTo, date, dueDate, status, items, taxRate, notes } = req.body;
+    const { invoiceNumber, clientName, billTo, date, dueDate, status, items, taxRate, businessCategory, terms, notes } = req.body;
 
     // Check if invoice number is unique for this tenant
     const existing = await Invoice.findOne({ tenantId, invoiceNumber: invoiceNumber.trim() });
@@ -49,10 +49,12 @@ exports.createInvoice = async (req, res) => {
       clientName: clientName.trim(),
       billTo: (billTo || "").trim(),
       date: date ? new Date(date) : new Date(),
-      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
+      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       status: status || "Draft",
       items: compiledItems,
       taxRate: Number(taxRate) || 0,
+      businessCategory: (businessCategory || "Professional Services").trim(),
+      terms: (terms || "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.").trim(),
       notes: (notes || "").trim(),
     });
 
@@ -69,7 +71,7 @@ exports.updateInvoice = async (req, res) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(403).json({ message: "Tenant required" });
 
-    const { invoiceNumber, clientName, billTo, date, dueDate, status, items, taxRate, notes } = req.body;
+    const { invoiceNumber, clientName, billTo, date, dueDate, status, items, taxRate, notes, businessCategory, terms } = req.body;
 
     const invoice = await Invoice.findOne({ _id: req.params.id, tenantId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
@@ -88,6 +90,8 @@ exports.updateInvoice = async (req, res) => {
     if (dueDate) invoice.dueDate = new Date(dueDate);
     if (status) invoice.status = status;
     if (taxRate !== undefined) invoice.taxRate = Number(taxRate) || 0;
+    if (businessCategory !== undefined) invoice.businessCategory = businessCategory.trim() || "Professional Services";
+    if (terms !== undefined) invoice.terms = terms.trim() || "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.";
     if (notes !== undefined) invoice.notes = notes.trim();
 
     if (items) {

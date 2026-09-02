@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Header from "../components/Header";
 import api from "../services/api";
+import { getMe } from "../services/me";
 
 const BLANK_INVOICE = {
   invoiceNumber: "",
@@ -11,6 +12,8 @@ const BLANK_INVOICE = {
   status: "Draft",
   items: [{ description: "", hours: 0, rate: 0 }],
   taxRate: 0,
+  businessCategory: "Professional Services",
+  terms: "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.",
   notes: "",
 };
 
@@ -23,17 +26,20 @@ export default function AdminInvoicesPage() {
   const [form, setForm] = useState(BLANK_INVOICE);
   const [editingId, setEditingId] = useState(null);
   const [printData, setPrintData] = useState(null);
+  const [tenantName, setTenantName] = useState("Your Company");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [invRes, sugRes] = await Promise.all([
+      const [invRes, sugRes, meRes] = await Promise.all([
         api.get("/invoices"),
         api.get("/invoices/uncalculated-billable"),
+        getMe(),
       ]);
       setInvoices(invRes.data?.invoices || []);
       setSuggestions(sugRes.data?.suggestions || []);
+      setTenantName(meRes?.tenantName || "Your Company");
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load invoicing workspace.");
     } finally {
@@ -83,6 +89,8 @@ export default function AdminInvoicesPage() {
           },
         ],
         taxRate: 0,
+        businessCategory: "Professional Services",
+        terms: "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.",
         notes: "Thank you for yours business!",
       });
       setShowForm(true);
@@ -106,6 +114,8 @@ export default function AdminInvoicesPage() {
         rate: it.rate,
       })) : [{ description: "", hours: 0, rate: 0 }],
       taxRate: inv.taxRate || 0,
+      businessCategory: inv.businessCategory || "Professional Services",
+      terms: inv.terms || "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.",
       notes: inv.notes || "",
     });
     setShowForm(true);
@@ -189,7 +199,13 @@ export default function AdminInvoicesPage() {
             padding: 40px;
           }
           .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #111; padding-bottom: 20px; }
-          .title { font-size: 28px; font-weight: 800; text-transform: uppercase; color: #111; }
+          .company-info { flex: 1; }
+          .company-name { font-size: 32px; font-weight: 900; text-transform: uppercase; color: #111; letter-spacing: -1px; }
+          .company-category { font-size: 12px; text-transform: uppercase; color: #666; font-weight: 700; margin-top: 2px; letter-spacing: 1px; }
+          .invoice-title { font-size: 16px; color: #999; font-weight: 600; margin-top: 8px; }
+          .invoice-number { font-size: 22px; font-weight: 800; color: #111; }
+          .powered-by { text-align: right; }
+          .powered-text { font-size: 11px; color: #999; }
           .meta-info { display: flex; justify-content: space-between; margin-bottom: 30px; gap: 40px; }
           .meta-block { flex: 1; }
           .meta-label { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 700; margin-bottom: 4px; }
@@ -202,28 +218,34 @@ export default function AdminInvoicesPage() {
           .summary-table { width: 300px; }
           .summary-table td { padding: 8px 12px; border: none; }
           .summary-table tr.total-row td { border-top: 2px solid #111; font-size: 18px; font-weight: 800; color: #111; padding-top: 12px; }
-          .notes-container { margin-top: 50px; background: #fafafa; border: 1px dashed #ddd; padding: 16px; border-radius: 6px; }
+          .terms-container { margin-top: 40px; background: #f8f8f8; border-left: 4px solid #111; padding: 14px 16px; border-radius: 2px; }
+          .terms-label { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 800; margin-bottom: 6px; letter-spacing: 1px; }
+          .terms-text { font-size: 12px; color: #333; line-height: 1.6; }
+          .footer-note { margin-top: 60px; text-align: center; font-size: 12px; color: #666; border-top: 1px dotted #ccc; padding-top: 14px; }
+          .powered-by-footer { margin-top: 20px; text-align: center; font-size: 10px; color: #bbb; }
           @page { margin: 0.5in; }
           @media print { body { padding: 0; } }
         </style>
       </head>
       <body>
         <div class="header">
-          <div>
-            <div class="title">Invoice</div>
-            <div style="font-size: 13px; color: #666; margin-top: 4px;">Numbered ${inv.invoiceNumber}</div>
+          <div class="company-info">
+            <div class="company-name">${tenantName}</div>
+            <div class="company-category">${inv.businessCategory || "Professional Services"}</div>
+            <div class="invoice-title">Invoice</div>
+            <div class="invoice-number">#${inv.invoiceNumber}</div>
           </div>
-          <div style="text-align: right;">
-            <div style="font-weight: 800; font-size: 16px;">TimeStamp Invoicing Workspace</div>
-            <div style="font-size: 12px; color: #666; margin-top: 2px;">Professional Client billing System</div>
+          <div class="powered-by">
+            <div class="powered-text">Invoicing System</div>
+            <div class="powered-text" style="margin-top: 20px; font-size: 10px; color: #ccc;">Powered by TimeStamp</div>
           </div>
         </div>
 
         <div class="meta-info">
           <div class="meta-block">
-            <div class="meta-label">Bill To Client</div>
+            <div class="meta-label">Bill To</div>
             <div class="meta-value" style="font-size:16px; margin-bottom: 4px;">${inv.clientName}</div>
-            <div class="meta-value" style="font-weight: 400; font-size: 13px; white-space: pre-wrap; color: #555;">${inv.billTo || "No address supplied"}</div>
+            <div class="meta-value" style="font-weight: 400; font-size: 13px; white-space: pre-wrap; color: #555;">${inv.billTo || "Address not provided"}</div>
           </div>
           <div class="meta-block" style="text-align: right; max-width: 250px;">
             <div style="margin-bottom: 10px;">
@@ -277,15 +299,25 @@ export default function AdminInvoicesPage() {
           </table>
         </div>
 
+        ${inv.terms ? `
+          <div class="terms-container">
+            <div class="terms-label">Payment Terms & Conditions</div>
+            <div class="terms-text">${inv.terms}</div>
+          </div>
+        ` : ""}
+
         ${inv.notes ? `
-          <div class="notes-container">
-            <div class="meta-label" style="margin-bottom: 6px;">Notes & Instructions</div>
+          <div style="margin-top: 30px; background: #fafafa; border: 1px dashed #ddd; padding: 14px; border-radius: 6px;">
+            <div class="meta-label" style="margin-bottom: 6px;">Payment Instructions</div>
             <div style="font-size: 13px; color: #444; white-space: pre-wrap;">${inv.notes}</div>
           </div>
         ` : ""}
 
-        <div style="margin-top: 60px; text-align: center; font-size: 11px; color: #999; border-top: 1px dotted #ccc; padding-top: 14px;">
+        <div class="footer-note">
           Payable on or before receipt. Thank you for choosing us as your trusted partner!
+        </div>
+        <div class="powered-by-footer">
+          This invoice was generated using TimeStamp Invoicing System
         </div>
       </body>
       </html>
@@ -533,6 +565,23 @@ export default function AdminInvoicesPage() {
                   <option value="Overdue">Overdue</option>
                 </select>
               </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Business Category</label>
+                <select
+                  value={form.businessCategory}
+                  onChange={(e) => setForm((p) => ({ ...p, businessCategory: e.target.value }))}
+                  style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #ddd" }}
+                >
+                  <option value="Professional Services">Professional Services</option>
+                  <option value="Home Care">Home Care</option>
+                  <option value="Consulting">Consulting</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="IT Services">IT Services</option>
+                  <option value="Trades">Trades</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
             </div>
 
             <h4 style={{ margin: "20px 0 8px 0" }}>📄 Itemized Services / Hours Worked</h4>
@@ -624,6 +673,17 @@ export default function AdminInvoicesPage() {
                   <strong>${totals.total}</strong>
                 </div>
               </div>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Payment Terms & Conditions</label>
+              <textarea
+                value={form.terms}
+                onChange={(e) => setForm((p) => ({ ...p, terms: e.target.value }))}
+                placeholder="Enter standard payment terms for this invoice"
+                rows={3}
+                style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #ddd", fontFamily: "inherit" }}
+              />
             </div>
 
             <div style={{ marginTop: 20 }}>

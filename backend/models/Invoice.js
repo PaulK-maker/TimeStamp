@@ -50,6 +50,16 @@ const invoiceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    businessCategory: {
+      type: String,
+      trim: true,
+      default: "Professional Services",
+    },
+    terms: {
+      type: String,
+      trim: true,
+      default: "Standard Net 30 Terms apply. Late payments are subject to a 1.5% interest charge per month.",
+    },
     notes: {
       type: String,
       trim: true,
