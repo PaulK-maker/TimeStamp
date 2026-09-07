@@ -13,6 +13,7 @@ const timeClockRoutes = require("./routes/timeClockRoutes");
 const missedPunchRoutes = require("./routes/missedPunchRoutes");
 const billingRoutes = require("./routes/billingRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
+const estimateRoutes = require("./routes/estimateRoutes");
 const tenantRoutes = require("./routes/tenantRoutes");
 const tenantOtpRoutes = require("./routes/tenantOtpRoutes");
 const superadminRoutes = require("./routes/superadminRoutes");
@@ -289,6 +290,7 @@ app.post("/api/dictate-file", upload.single("audio"), async (req, res) => {
 app.use("/api/admin", adminRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/invoices", invoiceRoutes);
+app.use("/api/estimates", estimateRoutes);
 app.use("/api/tenant", tenantRoutes);
 app.use("/api/tenant/otp", tenantOtpRoutes);
 app.use("/api/staff", staffRoutes);
