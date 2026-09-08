@@ -28,6 +28,13 @@ const tenantSchema = new mongoose.Schema(
       default: "",
     },
 
+    // Short subtitle shown under the company name on estimates/invoices, e.g. "Professional Services"
+    businessTagline: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     // Human-friendly facility code used for support/onboarding and safe tenant selection
     // in scripts. Stored without dashes; UI can display as XXXX-XXXX.
     tenantCode: {

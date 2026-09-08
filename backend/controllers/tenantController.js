@@ -32,6 +32,7 @@ function serializeTenant(tenant) {
   return {
     id: tenant._id.toString(),
     name: tenant.name,
+    businessTagline: tenant.businessTagline || "",
     tenantCode: tenant.tenantCode || null,
     planSelected: Boolean(tenant.planSelected),
     planId: tenant.planId || null,
@@ -98,6 +99,29 @@ exports.bootstrapTenant = async (req, res) => {
     });
   } catch (err) {
     console.error("bootstrapTenant failed:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// PUT /api/tenant/profile
+// Admin-only. Lets the facility owner set the company name and tagline shown on estimates/invoices.
+exports.updateProfile = async (req, res) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ message: "Tenant required" });
+
+    const { name, businessTagline } = req.body;
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+
+    if (name !== undefined) tenant.name = name.trim() || tenant.name;
+    if (businessTagline !== undefined) tenant.businessTagline = businessTagline.trim();
+
+    await tenant.save();
+    return res.json({ message: "Company profile updated", tenant: serializeTenant(tenant) });
+  } catch (err) {
+    console.error("updateProfile failed:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };

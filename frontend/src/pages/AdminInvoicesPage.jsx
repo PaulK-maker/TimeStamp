@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Header from "../components/Header";
+import CompanyProfileCard from "../components/CompanyProfileCard";
 import api from "../services/api";
 import { getMe } from "../services/me";
 
@@ -27,6 +28,7 @@ export default function AdminInvoicesPage() {
   const [editingId, setEditingId] = useState(null);
   const [printData, setPrintData] = useState(null);
   const [tenantName, setTenantName] = useState("Your Company");
+  const [businessTagline, setBusinessTagline] = useState("");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -40,6 +42,7 @@ export default function AdminInvoicesPage() {
       setInvoices(invRes.data?.invoices || []);
       setSuggestions(sugRes.data?.suggestions || []);
       setTenantName(meRes?.tenantName || "Your Company");
+      setBusinessTagline(meRes?.businessTagline || "");
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load invoicing workspace.");
     } finally {
@@ -231,7 +234,7 @@ export default function AdminInvoicesPage() {
         <div class="header">
           <div class="company-info">
             <div class="company-name">${tenantName}</div>
-            <div class="company-category">${inv.businessCategory || "Professional Services"}</div>
+            <div class="company-category">${businessTagline || inv.businessCategory || "Professional Services"}</div>
             <div class="invoice-title">Invoice</div>
             <div class="invoice-number">#${inv.invoiceNumber}</div>
           </div>
@@ -344,6 +347,17 @@ export default function AdminInvoicesPage() {
         <div style={{ background: "#fee2e2", color: "#b91c1c", padding: "12px 18px", borderRadius: 8, marginBottom: 20 }}>
           <strong>Error:</strong> {error}
         </div>
+      )}
+
+      {!showForm && (
+        <CompanyProfileCard
+          tenantName={tenantName}
+          businessTagline={businessTagline}
+          onSaved={(tenant) => {
+            setTenantName(tenant?.name || tenantName);
+            setBusinessTagline(tenant?.businessTagline || "");
+          }}
+        />
       )}
 
       {/* Suggestion Dashboard */}

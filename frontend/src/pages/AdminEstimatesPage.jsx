@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Header from "../components/Header";
+import CompanyProfileCard from "../components/CompanyProfileCard";
 import api from "../services/api";
 import { getMe } from "../services/me";
 
@@ -34,6 +35,7 @@ export default function AdminEstimatesPage() {
   const [form, setForm] = useState(BLANK_ESTIMATE);
   const [editingId, setEditingId] = useState(null);
   const [tenantName, setTenantName] = useState("Your Company");
+  const [businessTagline, setBusinessTagline] = useState("");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,7 @@ export default function AdminEstimatesPage() {
       ]);
       setEstimates(estRes.data?.estimates || []);
       setTenantName(meRes?.tenantName || "Your Company");
+      setBusinessTagline(meRes?.businessTagline || "");
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load estimates workspace.");
     } finally {
@@ -227,7 +230,7 @@ export default function AdminEstimatesPage() {
         <div class="header">
           <div class="company-info">
             <div class="company-name">${tenantName}</div>
-            <div class="company-category">${est.businessCategory || "Professional Services"}</div>
+            <div class="company-category">${businessTagline || est.businessCategory || "Professional Services"}</div>
             <div class="estimate-title">Estimate</div>
             <div class="estimate-number">#${est.estimateNumber}</div>
             <div class="estimate-subtitle">This is an estimate, not a bill — pricing may change if scope changes.</div>
@@ -354,6 +357,17 @@ export default function AdminEstimatesPage() {
         <div style={{ background: "#d1fae5", color: "#047857", padding: "12px 18px", borderRadius: 8, marginBottom: 20 }}>
           {message}
         </div>
+      )}
+
+      {!showForm && (
+        <CompanyProfileCard
+          tenantName={tenantName}
+          businessTagline={businessTagline}
+          onSaved={(tenant) => {
+            setTenantName(tenant?.name || tenantName);
+            setBusinessTagline(tenant?.businessTagline || "");
+          }}
+        />
       )}
 
       {/* Estimates Ledger Table */}

@@ -82,6 +82,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const baseUser = req.user;
     let tenantCode = null;
     let tenantName = null;
+    let businessTagline = "";
     let shiftLengthHours = 8;
     let geofence = {
       enabled: false,
@@ -93,11 +94,12 @@ router.get("/me", requireAuth, async (req, res) => {
     if (baseUser.tenantId) {
       const tenant = await Tenant.findById(baseUser.tenantId)
         .select(
-          "tenantCode name shiftLengthHours geofenceEnabled facilityLatitude facilityLongitude geofenceRadiusMeters"
+          "tenantCode name businessTagline shiftLengthHours geofenceEnabled facilityLatitude facilityLongitude geofenceRadiusMeters"
         )
         .lean();
       tenantCode = tenant?.tenantCode || null;
       tenantName = tenant?.name || null;
+      businessTagline = tenant?.businessTagline || "";
       shiftLengthHours = tenant?.shiftLengthHours || 8;
       geofence = {
         enabled: Boolean(tenant?.geofenceEnabled),
@@ -114,6 +116,7 @@ router.get("/me", requireAuth, async (req, res) => {
         ...baseUser,
         tenantCode,
         tenantName,
+        businessTagline,
         shiftLengthHours,
         geofence,
         defaultJob: staffMember?.defaultJob || null,
