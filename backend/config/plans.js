@@ -30,6 +30,7 @@ const PLANS = {
     name: "Pro",
     priceUsdMonthly: 55,
     maxStaff: 40,
+    trialDays: 15,
     features: {
       viewLogs: true,
       dataManagement: true,

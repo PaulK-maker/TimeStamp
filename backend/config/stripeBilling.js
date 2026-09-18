@@ -1,4 +1,5 @@
 const Stripe = require("stripe");
+const { getPlan } = require("./plans");
 
 const PAID_PLAN_ENV_MAP = {
   standard_10: "STRIPE_PRICE_STANDARD_10",
@@ -43,6 +44,10 @@ function getPlanIdForStripePriceId(priceId) {
 
 function isPaidPlan(planId) {
   return Boolean(PAID_PLAN_ENV_MAP[planId]);
+}
+
+function getTrialDaysForPlan(planId) {
+  return getPlan(planId)?.trialDays || 0;
 }
 
 function getPlanBillingType(planId) {
@@ -98,6 +103,7 @@ module.exports = {
   getPlanIdForStripePriceId,
   getPlanBillingType,
   isPaidPlan,
+  getTrialDaysForPlan,
   isSubscriptionAccessEnabled,
   buildStripeReturnUrl,
 };

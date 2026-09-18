@@ -676,6 +676,30 @@ export default function AdminBillingPage() {
               ) : null}
             </div>
           ) : null}
+          {billingInfo?.trialActive && tenant?.trialEndsAt ? (
+            <div style={{ marginTop: 10, padding: 12, borderRadius: 8, background: "#fff8e6", border: "1px solid #ffe7b8", color: "#7a4b00" }}>
+              You're in your free Pro trial. It ends on{" "}
+              <strong>{new Date(tenant.trialEndsAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</strong>{" "}
+              — cancel before then to avoid being charged.
+              {tenant?.stripeSubscriptionId ? (
+                <button
+                  onClick={openCancelDialog}
+                  disabled={portalBusy || cancelBusy}
+                  style={{
+                    marginLeft: 10,
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #b00020",
+                    background: "#fff",
+                    color: "#b00020",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel subscription
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {tenant?.tenantCode ? (
             <div style={{ color: "#555", marginTop: 6 }}>
               Facility code (support/reference): <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{formatTenantCode(tenant.tenantCode)}</span>
@@ -972,6 +996,12 @@ export default function AdminBillingPage() {
               <div>Data management: <strong>{p.features?.dataManagement ? "Yes" : "No"}</strong></div>
               <div>Printing/export: <strong>{p.features?.printing ? "Yes" : "No"}</strong></div>
             </div>
+
+            {p.trialDays && !tenant?.hasUsedTrial ? (
+              <div style={{ marginTop: 10, fontWeight: 700, color: "#146c43" }}>
+                Try free for {p.trialDays} days, then {formatUsd(p.priceUsdMonthly)}/mo. Cancel anytime before the trial ends to avoid being charged.
+              </div>
+            ) : null}
 
             <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
               <button

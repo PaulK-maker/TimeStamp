@@ -63,7 +63,42 @@ async function sendPurchaseConfirmationEmail({ tenant, session, subscription }) 
   await sendMail({ to, subject, text });
 }
 
-async function findTenantFromEventObject(object) {
+async function sendTrialStartedEmail({ tenant, session, subscription }) {
+  if (!isMailerConfigured()) return;
+
+  const to = getPurchaseRecipient(session);
+  if (!to) return;
+
+  const plan = getPlan(tenant?.planId || session?.metadata?.planId || null);
+  const planName = plan?.name || "Pro";
+  const price = subscription?.items?.data?.[0]?.price || null;
+  const formattedAmount = formatMoneyFromMinorUnits(price?.unit_amount, price?.currency);
+  const trialEndDate = subscription?.trial_end
+    ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+  const billingUrl = `${(process.env.APP_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/admin/billing`;
+
+  const subject = `Your TimeStamp ${planName} trial has started`;
+  const chargeLine = trialEndDate && formattedAmount
+    ? `Your card will be automatically charged ${formattedAmount} on ${trialEndDate} unless you cancel before then.`
+    : "Your card will be automatically charged when the trial ends unless you cancel before then.";
+
+  const text = [
+    `Hello,`,
+    "",
+    `Your 15-day free trial of the ${planName} plan has started for ${tenant?.name || "your facility"}.`,
+    trialEndDate ? `Trial ends: ${trialEndDate}` : null,
+    chargeLine,
+    "",
+    `Manage or cancel anytime here: ${billingUrl}`,
+  ].filter(Boolean).join("\n");
+
+  await sendMail({ to, subject, text });
+}
   const metadataTenantId = object?.metadata?.tenantId;
   if (metadataTenantId) {
     const byId = await Tenant.findById(metadataTenantId);
@@ -111,6 +146,13 @@ async function applySubscriptionToTenant(tenant, subscription) {
     : null;
   tenant.currentPeriodEnd = periodEndDate && !isNaN(periodEndDate) ? periodEndDate : null;
 
+  if (subscription.trial_end) {
+    tenant.trialEndsAt = new Date(subscription.trial_end * 1000);
+    tenant.hasUsedTrial = true;
+  } else {
+    tenant.trialEndsAt = null;
+  }
+
   if (mappedPlanId) {
     tenant.planId = mappedPlanId;
   }
@@ -139,7 +181,11 @@ async function handleCheckoutCompleted(session) {
     await applySubscriptionToTenant(tenant, subscription);
 
     try {
-      await sendPurchaseConfirmationEmail({ tenant, session, subscription });
+      if (subscription.status === "trialing") {
+        await sendTrialStartedEmail({ tenant, session, subscription });
+      } else {
+        await sendPurchaseConfirmationEmail({ tenant, session, subscription });
+      }
     } catch (error) {
       console.error("Stripe purchase confirmation email failed:", error);
     }

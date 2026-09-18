@@ -5,6 +5,7 @@ const {
   getStripePriceIdForPlan,
   getPlanBillingType,
   isPaidPlan,
+  getTrialDaysForPlan,
   isSubscriptionAccessEnabled,
   buildStripeReturnUrl,
 } = require("../config/stripeBilling");
@@ -26,6 +27,7 @@ function serializePlan(plan) {
     ...plan,
     billingType: getPlanBillingType(plan.id),
     stripePriceId: getStripePriceIdForPlan(plan.id),
+    trialDays: getTrialDaysForPlan(plan.id),
   };
 }
 
@@ -49,6 +51,8 @@ function serializeTenantBilling(tenant) {
       stripePriceId: tenant.stripePriceId || null,
       subscriptionStatus: tenant.subscriptionStatus || null,
       currentPeriodEnd: tenant.currentPeriodEnd || null,
+      hasUsedTrial: Boolean(tenant.hasUsedTrial),
+      trialEndsAt: tenant.trialEndsAt || null,
     },
     plan: serializePlan(plan),
     billing: {
@@ -59,6 +63,7 @@ function serializeTenantBilling(tenant) {
       canManagePortal: Boolean(tenant.stripeCustomerId),
       checkoutPending: Boolean(plan && paidPlan && !tenant.planSelected),
       invoicesEnabled: Boolean(tenant.stripeCustomerId),
+      trialActive: tenant.subscriptionStatus === "trialing",
     },
   };
 }
@@ -196,6 +201,7 @@ async function createCheckoutSession(req, res) {
   try {
     const customerId = await getOrCreateStripeCustomer(tenant);
     const stripe = getStripeClient();
+    const trialDays = tenant.hasUsedTrial ? 0 : getTrialDaysForPlan(plan.id);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -227,6 +233,12 @@ async function createCheckoutSession(req, res) {
           tenantCode: tenant.tenantCode || "",
           planId: plan.id,
         },
+        ...(trialDays > 0
+          ? {
+              trial_period_days: trialDays,
+              trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+            }
+          : {}),
       },
       client_reference_id: tenant._id.toString(),
       allow_promotion_codes: false,
@@ -237,6 +249,7 @@ async function createCheckoutSession(req, res) {
       sessionId: session.id,
       tenantId: tenant._id.toString(),
       planId: plan.id,
+      trialDays,
     });
   } catch (err) {
     return respondStripeError(res, err, "createCheckoutSession");

@@ -79,6 +79,17 @@ const tenantSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Trial tracking (Stripe-managed 15-day Pro trial). hasUsedTrial is set once and
+    // never reset, so a tenant cannot restart a trial by re-subscribing.
+    hasUsedTrial: {
+      type: Boolean,
+      default: false,
+    },
+    trialEndsAt: {
+      type: Date,
+      default: null,
+    },
+
     // Standard shift length this facility schedules around (hours per shift).
     // Used to derive a "shifts worked" summary from total hours, alongside
     // (not replacing) the authoritative punch-in/out hour totals.
