@@ -79,7 +79,7 @@ const tenantSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Trial tracking (Stripe-managed 15-day Pro trial). hasUsedTrial is set once and
+    // Trial tracking (Stripe-managed 15-day trial on paid plans). hasUsedTrial is set once and
     // never reset, so a tenant cannot restart a trial by re-subscribing.
     hasUsedTrial: {
       type: Boolean,

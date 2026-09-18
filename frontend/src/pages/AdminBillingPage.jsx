@@ -678,7 +678,7 @@ export default function AdminBillingPage() {
           ) : null}
           {billingInfo?.trialActive && tenant?.trialEndsAt ? (
             <div style={{ marginTop: 10, padding: 12, borderRadius: 8, background: "#fff8e6", border: "1px solid #ffe7b8", color: "#7a4b00" }}>
-              You're in your free Pro trial. It ends on{" "}
+              You're in your free {currentPlan.name} trial. It ends on{" "}
               <strong>{new Date(tenant.trialEndsAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</strong>{" "}
               — cancel before then to avoid being charged.
               {tenant?.stripeSubscriptionId ? (
