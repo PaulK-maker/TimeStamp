@@ -99,6 +99,8 @@ async function sendTrialStartedEmail({ tenant, session, subscription }) {
 
   await sendMail({ to, subject, text });
 }
+
+async function findTenantFromEventObject(object) {
   const metadataTenantId = object?.metadata?.tenantId;
   if (metadataTenantId) {
     const byId = await Tenant.findById(metadataTenantId);
